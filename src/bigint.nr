@@ -20,8 +20,9 @@ use std::ops::{Add, Div, Mul, Sub};
 ///   expensive. For multiple operations, prefer using unconstrained methods followed by
 ///   `evaluate_quadratic_expression`.
 ///
-/// - **Checked semantics**: `+` and `-` fail on overflow and underflow. `*` currently wraps,
-///   i.e. is computed modulo `2^BITS`.
+/// - **Checked semantics**: all arithmetic is checked. `+`, `-` and `*` (and their unconstrained
+///   `__` counterparts) fail on overflow and underflow, and `evaluate_quadratic_expression`
+///   constrains an exact integer relation.
 ///
 /// # Example
 /// ```
@@ -91,11 +92,11 @@ pub trait BigInt: Add + Sub + Mul + Div + Eq {
 
     /// Generates a deterministic pseudorandom BigInt from a seed.
     ///
-    /// Uses Poseidon2 hash to derive `BITS * 2` bits of entropy, then reduces modulo `MOD`.
+    /// Uses the Poseidon2 hash to derive `BITS` bits of entropy.
     ///
     /// # Security Warning
     /// **NOT cryptographically secure for all use cases**. The output is deterministic and
-    /// uniformly distributed modulo `MOD`, but the seed-to-output mapping is publicly computable.
+    /// uniformly distributed in `[0, 2^BITS)`, but the seed-to-output mapping is publicly computable.
     /// Do not use for secret key generation where the seed might be guessable.
     ///
     /// # Constrained
@@ -162,13 +163,17 @@ pub trait BigInt: Add + Sub + Mul + Div + Eq {
     /// No constraints are generated. Constrain the result using `evaluate_quadratic_expression`.
     unconstrained fn __sub(&self, other: &Self) -> Self;
 
-    /// Unconstrained multiplication: computes `self * other (mod 2^BITS)`.
+    /// Unconstrained multiplication: computes `self * other`.
+    ///
+    /// Fails if the product overflows `2^BITS`.
     ///
     /// # Safety
     /// No constraints are generated. Constrain the result using `evaluate_quadratic_expression`.
     unconstrained fn __mul(&self, other: &Self) -> Self;
 
-    /// Unconstrained squaring: computes `self * self (mod 2^BITS)`.
+    /// Unconstrained squaring: computes `self * self`.
+    ///
+    /// Fails if the result overflows `2^BITS`.
     ///
     /// # Safety
     /// No constraints are generated. Constrain the result using `evaluate_quadratic_expression`.
@@ -195,10 +200,12 @@ pub trait BigInt: Add + Sub + Mul + Div + Eq {
     /// No constraints are generated. Use `udiv_mod()` for the constrained version.
     unconstrained fn __udiv_mod(&self, divisor: &Self) -> (Self, Self);
 
-    /// Unconstrained modular exponentiation: computes `self^exponent (mod 2^BITS)`.
+    /// Unconstrained exponentiation: computes `self^exponent`.
+    ///
+    /// Fails if the result overflows `2^BITS`.
     ///
     /// # Performance Warning
-    /// **EXPENSIVE**: Complexity is O(BITS) multiplications.
+    /// **EXPENSIVE**: Complexity is O(log2(exponent)) multiplications.
     ///
     /// # Safety
     /// No constraints are generated.
@@ -236,7 +243,7 @@ pub trait BigInt: Add + Sub + Mul + Div + Eq {
     /// BigInt does not add duplicate constraints.
     fn validate_in_range(&self);
 
-    /// Constrained squaring: computes `self * self (mod 2^BITS)`.
+    /// Constrained squaring: computes `self * self`, failing if the result overflows `2^BITS`.
     ///
     /// # Performance Note
     /// For multiple operations, prefer using `__sqr()` followed by `evaluate_quadratic_expression`.
@@ -534,10 +541,12 @@ pub comptime fn derive_bigint(strukt: TypeDefinition, BITS: u32) -> Quoted {
     }
 }
 
-/// Computes the quotient and remainder of a quadratic expression (unconstrained).
+/// Computes the value of a quadratic expression (unconstrained).
 ///
-/// Evaluates `sum_i(product(lhs_terms[i]) * product(rhs_terms[i])) + sum(linear_terms) = q * 2^BITS + r`
-/// and returns `(q, r)`.
+/// Evaluates `sum_i(sum(lhs_terms[i]) * sum(rhs_terms[i])) + sum(linear_terms)` over the integers
+/// and returns it.
+///
+/// Fails if the value is negative or `>= 2^BITS`.
 ///
 /// # Parameters
 /// - `lhs_terms`: Left-hand side terms for each product. Shape: `[NUM_PRODUCTS][LHS_N]`
@@ -555,7 +564,7 @@ pub comptime fn derive_bigint(strukt: TypeDefinition, BITS: u32) -> Quoted {
 /// Computing `a * b + c`:
 /// ```
 /// // Safety: unconstrained witness computation
-/// let (q, r) = unsafe {
+/// let r = unsafe {
 ///     compute_quadratic_expression(
 ///         [[a]],      // lhs_terms
 ///         [[false]],  // lhs_flags (not negated)
@@ -565,7 +574,7 @@ pub comptime fn derive_bigint(strukt: TypeDefinition, BITS: u32) -> Quoted {
 ///         [false],    // linear_flags
 ///     )
 /// };
-/// // r now contains (a * b + c) mod 2^BITS
+/// // r now contains a * b + c
 /// ```
 pub unconstrained fn compute_quadratic_expression<T: BigInt, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
     lhs_terms: [[T; LHS_N]; NUM_PRODUCTS],
@@ -574,8 +583,8 @@ pub unconstrained fn compute_quadratic_expression<T: BigInt, let LHS_N: u32, let
     rhs_flags: [[bool; RHS_N]; NUM_PRODUCTS],
     linear_terms: [T; ADD_N],
     linear_flags: [bool; ADD_N],
-) -> (T, T) {
-    let (q_limbs, r_limbs) = crate::fns::expressions::__compute_quadratic_expression::<<T as BigInt>::N, <T as BigInt>::BITS, LHS_N, RHS_N, NUM_PRODUCTS, ADD_N>(
+) -> T {
+    let limbs = crate::fns::expressions::__compute_quadratic_expression::<<T as BigInt>::N, <T as BigInt>::BITS, LHS_N, RHS_N, NUM_PRODUCTS, ADD_N>(
         &crate::utils::map::map(
             &lhs_terms,
             |bns| crate::utils::map::map(bns, |bn: &T| bn.get_limbs()),
@@ -589,10 +598,10 @@ pub unconstrained fn compute_quadratic_expression<T: BigInt, let LHS_N: u32, let
         &crate::utils::map::map(&linear_terms, |bn: &T| bn.get_limbs()),
         &linear_flags,
     );
-    (T::from_limbs_unsafe(q_limbs), T::from_limbs_unsafe(r_limbs))
+    T::from_limbs_unsafe(limbs)
 }
 
-/// Constrains a quadratic expression to equal zero modulo `2^BITS`.
+/// Constrains a quadratic expression to equal zero over the integers.
 ///
 /// This is the **recommended** way to constrain BigInt arithmetic for optimal performance.
 /// Instead of using multiple constrained operations (`+`, `-`, `*`), compute results using
@@ -648,7 +657,7 @@ pub unconstrained fn compute_quadratic_expression<T: BigInt, let LHS_N: u32, let
 /// operations. For complex expressions, the savings can be substantial.
 ///
 /// # Panics
-/// Fails if the expression does not equal zero modulo `2^BITS`.
+/// Fails if the expression does not equal zero.
 pub fn evaluate_quadratic_expression<T: BigInt, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
     lhs_terms: [[T; LHS_N]; NUM_PRODUCTS],
     lhs_flags: [[bool; LHS_N]; NUM_PRODUCTS],

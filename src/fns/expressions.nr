@@ -2,77 +2,80 @@ use crate::utils::split_bits;
 
 use crate::constants::{TWO_POW_120, TWO_POW_126, TWO_POW_246};
 
-use crate::fns::constrained_ops::{validate_in_range, validate_quotient_in_range};
-use crate::fns::unconstrained_helpers::__reduce;
-use crate::fns::unconstrained_ops::__is_zero;
-
-use crate::fns::modulus::{get_double_modulus, get_modulus};
+use crate::fns::constrained_ops::validate_in_range;
+use crate::fns::unconstrained_helpers::__helper_sub;
+use crate::fns::unconstrained_ops::__gte;
 
 // ------------------------------ UNCONSTRAINED EXPRESSIONS ------------------------------
 
-/// Compute the result of a linear combination of (possibly negative) `BigInt` values (unconstrained)
+/// Split a linear combination of (possibly negated) `BigInt` values into the limb-wise sums of
+/// its positive and its negated terms (unconstrained).
 ///
-/// ## Note
-/// 1. `modulus2` is structured such that all limbs will be greater than `0`, even when subtracting.
-/// To do this, when computing `p - x`, we ensure that each limb in `p` is greater than each limb in `x`.
-/// We know that, for a valid bigint element, the limbs in `x` will be < 2^{120}
-/// Therefore each of the limbs in `p` (except the most significant) will borrow 2^{120} from the more significant limb.
-/// Finally, to ensure we do not underflow in the most significant limb, we use `2p` instead of `p`
-///
-/// 2. Returns the `Field` values that are not normalized to be 120-bit
-unconstrained fn __add_linear_expression<let N: u32, let BITS: u32, let M: u32>(
+/// Neither sum is normalised to 120-bit limbs.
+unconstrained fn __signed_linear_expression<let N: u32, let M: u32>(
     vals: &[[u128; N]; M],
     flags: &[bool; M],
-) -> ([Field; N]) {
-    let mut sum: [Field; N] = [0; N];
-    let modulus2: [u128; N] = get_double_modulus::<N, BITS>();
+) -> ([Field; N], [Field; N]) {
+    let mut positive: [Field; N] = [0; N];
+    let mut negative: [Field; N] = [0; N];
     for i in 0..M {
-        if (flags[i]) {
-            for j in 0..N {
-                sum[j] = sum[j] + (modulus2[j] as Field) - (vals[i][j] as Field);
-            }
-        } else {
-            for j in 0..N {
-                sum[j] = sum[j] + (vals[i][j] as Field);
+        for j in 0..N {
+            if flags[i] {
+                negative[j] += vals[i][j] as Field;
+            } else {
+                positive[j] += vals[i][j] as Field;
             }
         }
     }
-    sum
+    (positive, negative)
 }
 
-/// Compute the limb products of a quadratic expression (unconstrained)
+/// Compute a quadratic expression as the difference `P - Q` of two values with non-negative,
+/// non-normalised limbs (unconstrained).
 ///
-/// See `__compute_quadratic_expression_with_borrow_flags` for full description
+/// The expression is `\sum_k L_k * R_k + A`, where `L_k`, `R_k` and `A` are linear
+/// combinations of (possibly negated) terms. Writing each combination as the difference of its
+/// positive and negated terms, e.g. `L_k = L_k^+ - L_k^-`:
 ///
-/// ## Note
-/// Returns the `Field` values that are not normalized to be 120-bit
-unconstrained fn __compute_quadratic_expression_product<let N: u32, let BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
+///     P = \sum_k (L_k^+ * R_k^+ + L_k^- * R_k^-) + A^+
+///     Q = \sum_k (L_k^+ * R_k^- + L_k^- * R_k^+) + A^-
+///
+/// The returned arrays have `2N` limbs, of which the top limb is always zero, so that they can be
+/// normalised without overflow.
+unconstrained fn __compute_quadratic_expression_parts<let N: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
     lhs_terms: &[[[u128; N]; LHS_N]; NUM_PRODUCTS],
     lhs_flags: &[[bool; LHS_N]; NUM_PRODUCTS],
     rhs_terms: &[[[u128; N]; RHS_N]; NUM_PRODUCTS],
     rhs_flags: &[[bool; RHS_N]; NUM_PRODUCTS],
     linear_terms: &[[u128; N]; ADD_N],
     linear_flags: &[bool; ADD_N],
-) -> [Field; 2 * N] {
-    let mut lhs: [[Field; N]; NUM_PRODUCTS] = [[0; N]; NUM_PRODUCTS];
-    let mut rhs: [[Field; N]; NUM_PRODUCTS] = [[0; N]; NUM_PRODUCTS];
+) -> ([Field; 2 * N], [Field; 2 * N]) {
+    let mut positive: [Field; 2 * N] = [0; 2 * N];
+    let mut negative: [Field; 2 * N] = [0; 2 * N];
 
-    for i in 0..NUM_PRODUCTS {
-        lhs[i] = __add_linear_expression::<N, BITS, LHS_N>(&lhs_terms[i], &lhs_flags[i]);
-        rhs[i] = __add_linear_expression::<N, BITS, RHS_N>(&rhs_terms[i], &rhs_flags[i]);
-    }
-    let add: [Field; N] = __add_linear_expression::<N, BITS, ADD_N>(linear_terms, linear_flags);
-
-    let mut mulout: [Field; 2 * N] = [0; 2 * N];
-    for i in 0..N {
-        for j in 0..N {
-            for k in 0..NUM_PRODUCTS {
-                mulout[i + j] += lhs[k][i] * rhs[k][j];
+    for k in 0..NUM_PRODUCTS {
+        let (lhs_positive, lhs_negative): ([Field; N], [Field; N]) =
+            __signed_linear_expression::<N, LHS_N>(&lhs_terms[k], &lhs_flags[k]);
+        let (rhs_positive, rhs_negative): ([Field; N], [Field; N]) =
+            __signed_linear_expression::<N, RHS_N>(&rhs_terms[k], &rhs_flags[k]);
+        for i in 0..N {
+            for j in 0..N {
+                positive[i + j] +=
+                    lhs_positive[i] * rhs_positive[j] + lhs_negative[i] * rhs_negative[j];
+                negative[i + j] +=
+                    lhs_positive[i] * rhs_negative[j] + lhs_negative[i] * rhs_positive[j];
             }
         }
-        mulout[i] += add[i];
     }
-    mulout
+
+    let (linear_positive, linear_negative): ([Field; N], [Field; N]) =
+        __signed_linear_expression::<N, ADD_N>(linear_terms, linear_flags);
+    for i in 0..N {
+        positive[i] += linear_positive[i];
+        negative[i] += linear_negative[i];
+    }
+
+    (positive, negative)
 }
 
 /// Compute the borrow flags for a limb-wise subtraction `lhs - rhs` (unconstrained).
@@ -132,41 +135,18 @@ unconstrained fn __compute_borrow_flags<let N: u32>(
     borrow_flags
 }
 
-/// Given a degree-2 `BigInt` expression that is equal to `0 mod MOD`, compute
-/// the quotient and the borrow flags (unconstrained).
+/// Compute the borrow flags used to evaluate a quadratic expression in-circuit (unconstrained).
 ///
-/// The expression has the form:
-///
-///     sum_{k=0}^{NUM_PRODUCTS-1} (L_k * R_k) + sum_{i=0}^{ADD_N-1} A_i = quotient * MOD
-///
-/// where each `L_k`, `R_k`, `A_i` is an `N`-limb `BigInt` assembled from the
-/// `(terms, flags)` arrays.
-///
-/// This helper:
-///   1. Evaluates the quadratic expression into `mulout_p` as a `2N`-limb
-///      non-normalized value.
-///   2. Normalizes `mulout_p` into 120-bit limbs and reduces it modulo
-///      `MOD` to obtain `(quotient, remainder)`.
-///   3. Asserts that the integer remainder is zero (debugging aid; range
-///      checks enforce this later).
-///   4. Reconstructs `mulout_n = quotient * MOD`.
-///   5. Computes `borrow_flags` for the limb-wise subtraction
-///        `mulout_p - mulout_n`,
-///      using the 2^{246}/2^{126} encoding described in
-///      `evaluate_quadratic_expression`.
-///
-/// The returned `quotient` and `borrow_flags` are later constrained
-/// in-circuit by `compute_quadratic_expression_with_modulus` and
-/// `evaluate_quadratic_expression`.
-unconstrained fn __compute_quadratic_expression_with_borrow_flags<let N: u32, let BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
+/// See `__compute_quadratic_expression_parts` and `__compute_borrow_flags`.
+unconstrained fn __compute_quadratic_expression_borrow_flags<let N: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
     lhs_terms: &[[[u128; N]; LHS_N]; NUM_PRODUCTS],
     lhs_flags: &[[bool; LHS_N]; NUM_PRODUCTS],
     rhs_terms: &[[[u128; N]; RHS_N]; NUM_PRODUCTS],
     rhs_flags: &[[bool; RHS_N]; NUM_PRODUCTS],
     linear_terms: &[[u128; N]; ADD_N],
     linear_flags: &[bool; ADD_N],
-) -> ([u128; N], [bool; 2 * N - 2]) {
-    let mulout_p: [Field; 2 * N] = __compute_quadratic_expression_product::<N, BITS, LHS_N, RHS_N, NUM_PRODUCTS, ADD_N>(
+) -> [bool; 2 * N - 2] {
+    let (positive, negative): ([Field; 2 * N], [Field; 2 * N]) = __compute_quadratic_expression_parts::<N, LHS_N, RHS_N, NUM_PRODUCTS, ADD_N>(
         lhs_terms,
         lhs_flags,
         rhs_terms,
@@ -175,38 +155,21 @@ unconstrained fn __compute_quadratic_expression_with_borrow_flags<let N: u32, le
         linear_flags,
     );
 
-    // `__normalize_limbs` will validate that we do not overflow 2N, normally we should not overflow 2N-1
-    let relation_result: [u128; 2 * N] = split_bits::__normalize_limbs(mulout_p);
-    let (quotient, remainder): ([u128; N], [u128; N]) = __reduce::<N, BITS>(&relation_result);
-
-    // This is verified later by the range checks but left for debugging purposes
-    assert(__is_zero(&remainder));
-
-    // We do not normalize `mulout_n` so we won't fill the `2 * N - 1`
-    let modulus: [u128; N] = get_modulus::<N, BITS>();
-    let mut mulout_n: [Field; 2 * N] = [0; 2 * N];
-    for i in 0..N {
-        for j in 0..N {
-            mulout_n[i + j] += (quotient[i] as Field) * (modulus[j] as Field);
-        }
+    // The expression has `2N - 1` limbs; the top limb of each part is always zero.
+    let mut positive_limbs: [Field; 2 * N - 1] = [0; 2 * N - 1];
+    let mut negative_limbs: [Field; 2 * N - 1] = [0; 2 * N - 1];
+    for i in 0..2 * N - 1 {
+        positive_limbs[i] = positive[i];
+        negative_limbs[i] = negative[i];
     }
-
-    let borrow_flags: [bool; 2 * N - 1] = __compute_borrow_flags(mulout_p, mulout_n);
-
-    // We have to copy it because we know that borrow_flags[2 * N - 1] is always 0
-    // But we also have to provide 2 * N limbs to `__reduce`.
-    // And keep `__compute_borrow_flags` generic enough
-    let mut borrow_flags_real: [bool; 2 * N - 2] = [false; 2 * N - 2];
-    for i in 0..2 * N - 2 {
-        borrow_flags_real[i] = borrow_flags[i];
-    }
-
-    (quotient, borrow_flags_real)
+    __compute_borrow_flags(positive_limbs, negative_limbs)
 }
 
-/// Computes the quotient/remainder of a quadratic expression (unconstrained)
+/// Computes the value of a quadratic expression (unconstrained).
 ///
-/// See `__compute_quadratic_expression_with_borrow_flags` for full description
+/// Fails if the expression is negative or `>= 2^BITS`.
+///
+/// See `__compute_quadratic_expression_parts` for the form of the expression.
 pub(crate) unconstrained fn __compute_quadratic_expression<let N: u32, let BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
     lhs_terms: &[[[u128; N]; LHS_N]; NUM_PRODUCTS],
     lhs_flags: &[[bool; LHS_N]; NUM_PRODUCTS],
@@ -214,8 +177,8 @@ pub(crate) unconstrained fn __compute_quadratic_expression<let N: u32, let BITS:
     rhs_flags: &[[bool; RHS_N]; NUM_PRODUCTS],
     linear_terms: &[[u128; N]; ADD_N],
     linear_flags: &[bool; ADD_N],
-) -> ([u128; N], [u128; N]) {
-    let mulout: [Field; 2 * N] = __compute_quadratic_expression_product::<N, BITS, LHS_N, RHS_N, NUM_PRODUCTS, ADD_N>(
+) -> [u128; N] {
+    let (positive, negative): ([Field; 2 * N], [Field; 2 * N]) = __compute_quadratic_expression_parts::<N, LHS_N, RHS_N, NUM_PRODUCTS, ADD_N>(
         lhs_terms,
         lhs_flags,
         rhs_terms,
@@ -223,35 +186,35 @@ pub(crate) unconstrained fn __compute_quadratic_expression<let N: u32, let BITS:
         linear_terms,
         linear_flags,
     );
-    // __normalize_limbs will validate that we do not overflow 2N, normally we should not overflow 2N-1
-    let relation_result: [u128; 2 * N] = split_bits::__normalize_limbs(mulout);
+    // `__normalize_limbs` validates that neither part overflows `2N` limbs
+    let positive: [u128; 2 * N] = split_bits::__normalize_limbs(positive);
+    let negative: [u128; 2 * N] = split_bits::__normalize_limbs(negative);
 
-    let (quotient, remainder): ([u128; N], [u128; N]) = __reduce::<N, BITS>(&relation_result);
+    assert(__gte(&positive, &negative), "attempt to subtract with overflow");
+    let value: [u128; 2 * N] = __helper_sub(&positive, &negative);
 
-    (quotient, remainder)
+    let mut result: [u128; N] = [0; N];
+    for i in 0..N {
+        result[i] = value[i];
+    }
+    let top_limb_bits: u128 = (BITS - (N - 1) * 120) as u128;
+    let mut overflow: bool = (result[N - 1] >> top_limb_bits) != 0;
+    for i in N..2 * N {
+        overflow |= value[i] != 0;
+    }
+    assert(!overflow, "attempt to evaluate quadratic expression with overflow");
+
+    result
 }
 
 // ------------------------------ CONSTRAINED EXPRESSIONS ------------------------------
 
-/// Constrained version of `__add_linear_expression`
+/// Constrained version of `__signed_linear_expression`
 ///
-/// Computes all the linear parts of an expression in-circuit
-///
-/// ## Note
-/// 1. Negative terms are implemented by adding `double_modulus`
-/// `double_modulus` is chosen so that all limbs except the top one
-/// are > 2^{120}, which prevents underflows in intermediate computations.
-/// However it can cause completeness issues. Refer to the "Note on negation flags"
-/// section of `assert_product_limbs_fit_in_246_bits` and the
-/// `test_evaluate_quadratic_expression_limb_overflow` test.
-///
-/// 2. For the most significant limb we slightly reduce the padding (to keep the
-/// overall value equal to `2 * MOD`), so in principle there is a narrow edge
-/// case where that limb could underflow if enough negative contributions are
-/// accumulated and the top limb of `MOD` is very small. In practice, the
-/// global `BigInt` range and operand-count assumptions in
-/// `evaluate_quadratic_expression` rule out such patterns.
-fn compute_linear_expressions<let N: u32, let BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
+/// Computes all the linear parts of an expression in-circuit, as limb-wise signed sums of the
+/// terms, i.e. negated terms are subtracted. The resulting limbs are not normalised and may be
+/// negative.
+fn compute_linear_expressions<let N: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
     lhs_terms: &[[[u128; N]; LHS_N]; NUM_PRODUCTS],
     lhs_flags: &[[bool; LHS_N]; NUM_PRODUCTS],
     rhs_terms: &[[[u128; N]; RHS_N]; NUM_PRODUCTS],
@@ -259,21 +222,16 @@ fn compute_linear_expressions<let N: u32, let BITS: u32, let LHS_N: u32, let RHS
     linear_terms: &[[u128; N]; ADD_N],
     linear_flags: &[bool; ADD_N],
 ) -> ([[Field; N]; NUM_PRODUCTS], [[Field; N]; NUM_PRODUCTS], [Field; N]) {
-    // lhs linear terms
     let mut lhs_linear: [[Field; N]; NUM_PRODUCTS] = [[0; N]; NUM_PRODUCTS];
-    // rhs linear terms
     let mut rhs_linear: [[Field; N]; NUM_PRODUCTS] = [[0; N]; NUM_PRODUCTS];
-    // linear terms
     let mut lin_expr: [Field; N] = [0; N];
 
-    let double_modulus: [u128; N] = get_double_modulus::<N, BITS>();
     for k in 0..NUM_PRODUCTS {
         for i in 0..N {
             for j in 0..LHS_N {
                 // Note: if lhs_flags[k][j] - `is_negative` is not known at comptime this is very expensive
                 if (lhs_flags[k][j]) {
                     lhs_linear[k][i] -= lhs_terms[k][j][i] as Field;
-                    lhs_linear[k][i] += double_modulus[i] as Field;
                 } else {
                     lhs_linear[k][i] += lhs_terms[k][j][i] as Field;
                 }
@@ -282,7 +240,6 @@ fn compute_linear_expressions<let N: u32, let BITS: u32, let LHS_N: u32, let RHS
                 // Note: if rhs_flags[k][j] - `is_negative` is not known at comptime this is very expensive
                 if (rhs_flags[k][j]) {
                     rhs_linear[k][i] -= rhs_terms[k][j][i] as Field;
-                    rhs_linear[k][i] += double_modulus[i] as Field;
                 } else {
                     rhs_linear[k][i] += rhs_terms[k][j][i] as Field;
                 }
@@ -295,7 +252,6 @@ fn compute_linear_expressions<let N: u32, let BITS: u32, let LHS_N: u32, let RHS
             // Note: if linear_flags[j] - `is_negative` is not known at comptime this is very expensive
             if (linear_flags[j]) {
                 lin_expr[i] -= linear_terms[j][i] as Field;
-                lin_expr[i] += double_modulus[i] as Field;
             } else {
                 lin_expr[i] += linear_terms[j][i] as Field;
             }
@@ -305,34 +261,21 @@ fn compute_linear_expressions<let N: u32, let BITS: u32, let LHS_N: u32, let RHS
     (lhs_linear, rhs_linear, lin_expr)
 }
 
-/// Constrained version of `__compute_quadratic_expression_product`
+/// Computes the limbs of `\sum L_i * R_i + A` in-circuit, with prover-provided borrow flags
+/// applied.
 ///
-/// Computes the following expression in-circuit:
-///     \sum (L_i * R_i) + \sum (A_i) - QUOTIENT * MOD
-///
-/// Because of the subtraction of `QUOTIENT * MODULUS`, the resulting limbs may
-/// underflow and represent *negative* values. To account for this, we allow the
-/// prover to choose a sequence of borrow flags and interpret the limbs with
-/// additional terms:
+/// Each limb of the expression is a signed value. To allow `validate_expression_is_zero` to check
+/// that the limbs encode zero using non-negative carries, the prover provides a sequence of
+/// borrow flags, and the limbs are adjusted by:
 ///
 ///   - for each limb `i` we may add `2^{246}` (via a flag at position `i`);
 ///   - for each limb `i` we may subtract `2^{126 = 246 - 120}` (via the flag
 ///     at position `i - 1`).
 ///
-/// This corresponds to borrowing `2^{126}` from limb `i + 1` and adding
-/// `2^{246}` into limb `i`. After this adjustment, an honest prover can ensure
-/// that every limb lies in `[0, 2^{246})` and that the adjusted limbs encode
-/// the correct integer value.
-///
-/// Additionally, we constrain the quotient limbs via `validate_quotient_in_range`:
-///   - limbs `0..N-2` of `quotient` are < 2^{120};
-///   - the top limb is < 2^{TOP_LIMB_BITS + 7}.
-/// Which validates `quotient < 2^{BITS + 7} = 2^7 * MOD`
-///
-/// ## TODO
-/// Apply static or runtime checks in this method to validate that the effective
-/// `twiddle_factor` does not exceed 6 under the chosen parameters.
-fn compute_quadratic_expression_with_modulus<let N: u32, let BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
+/// This corresponds to borrowing `2^{126}` from limb `i + 1` and adding `2^{246}` into limb `i`,
+/// which leaves the integer value encoded by the limbs unchanged. After this adjustment, an honest
+/// prover can ensure that every running sum of limbs and carries lies in `[0, 2^{246})`.
+fn compute_quadratic_expression_limbs<let N: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
     lhs_terms: &[[[u128; N]; LHS_N]; NUM_PRODUCTS],
     lhs_flags: &[[bool; LHS_N]; NUM_PRODUCTS],
     rhs_terms: &[[[u128; N]; RHS_N]; NUM_PRODUCTS],
@@ -340,9 +283,10 @@ fn compute_quadratic_expression_with_modulus<let N: u32, let BITS: u32, let LHS_
     linear_terms: &[[u128; N]; ADD_N],
     linear_flags: &[bool; ADD_N],
 ) -> [Field; 2 * N - 1] {
-    // Safety: use an unconstrained function to compute the value of the quotient and borrow_flags out-of-circuit
-    let (quotient, borrow_flags): ([u128; N], [bool; 2 * N - 2]) = unsafe {
-        __compute_quadratic_expression_with_borrow_flags::<N, BITS, LHS_N, RHS_N, NUM_PRODUCTS, ADD_N>(
+    // Safety: the borrow flags are constrained by `validate_expression_is_zero`, which fails for
+    // any flags which do not make every running sum a non-negative multiple of 2^{120}
+    let borrow_flags: [bool; 2 * N - 2] = unsafe {
+        __compute_quadratic_expression_borrow_flags::<N, LHS_N, RHS_N, NUM_PRODUCTS, ADD_N>(
             lhs_terms,
             lhs_flags,
             rhs_terms,
@@ -352,12 +296,8 @@ fn compute_quadratic_expression_with_modulus<let N: u32, let BITS: u32, let LHS_
         )
     };
 
-    // Constrain the `quotient < 2^{BITS + 7}`
-    // By constraining limbs(0..N-2) to be < 2^120 and the the top limb < 2^{TOP_LIMB_BITS + 7}
-    validate_quotient_in_range::<N, BITS>(&quotient);
-
     // Compute the linear sums that represent L_i, R_i, A
-    let (lhs_linear, rhs_linear, lin_expr): ([[Field; N]; NUM_PRODUCTS], [[Field; N]; NUM_PRODUCTS], [Field; N]) = compute_linear_expressions::<N, BITS, LHS_N, RHS_N, NUM_PRODUCTS, ADD_N>(
+    let (lhs_linear, rhs_linear, lin_expr): ([[Field; N]; NUM_PRODUCTS], [[Field; N]; NUM_PRODUCTS], [Field; N]) = compute_linear_expressions::<N, LHS_N, RHS_N, NUM_PRODUCTS, ADD_N>(
         lhs_terms,
         lhs_flags,
         rhs_terms,
@@ -366,30 +306,11 @@ fn compute_quadratic_expression_with_modulus<let N: u32, let BITS: u32, let LHS_
         linear_flags,
     );
 
-    // We want to evaluate that L * R + A - Quotient * MOD = 0, evaluated over the integers
-    // For this we need to be able to borrow values from more-significant limbs into less-significant limbs,
-    // so that we can ensure that no limbs will underflow
     let mut expression_limbs: [Field; 2 * N - 1] = [0; 2 * N - 1];
-    let modulus: [u128; N] = get_modulus::<N, BITS>();
-
-    // Compute the product t0 * t1 + t4 - Quotient * MOD
-    // TODO: this is super nasty as it requires a multiplication
     for i in 0..N {
         for j in 0..N {
             for k in 0..NUM_PRODUCTS {
-                if k == 0 {
-                    let new_term: Field = lhs_linear[k][i] * rhs_linear[k][j]
-                        - (quotient[i] as Field) * (modulus[j] as Field);
-                    // width-4 optimization
-                    std::as_witness(new_term);
-                    expression_limbs[i + j] += new_term;
-                } else {
-                    expression_limbs[i + j] += lhs_linear[k][i] * rhs_linear[k][j];
-                }
-            }
-            // This is the fallback for pure linear expression
-            if (NUM_PRODUCTS == 0) {
-                expression_limbs[i + j] -= (quotient[i] as Field) * (modulus[j] as Field);
+                expression_limbs[i + j] += lhs_linear[k][i] * rhs_linear[k][j];
             }
         }
         expression_limbs[i] += lin_expr[i];
@@ -464,7 +385,7 @@ fn apply_borrow_flags<let N: u32>(
 ///     - `limbs` is an array of `Field` values that was derived arithmetically as
 ///        a degree-2 expression
 ///     - each limb satisfies `limbs[i] < 2^{246}`, as ensured by
-///       `compute_quadratic_expression_with_modulus` under its parameter bounds.
+///       `compute_quadratic_expression_limbs` under its parameter bounds.
 ///
 /// ## Details
 /// Each element `i` in `limbs` overlaps in bit-range with element `i+1`, EXCEPT for the low 120 bits
@@ -507,9 +428,7 @@ fn validate_expression_is_zero<let N: u32>(mut limbs: [Field; N]) {
 /// honest witnesses.
 ///
 /// Each input is validated to have limbs `< 2^{120}` (non-top) or `< 2^{TOP_LIMB_BITS}`
-/// (top), where `TOP_LIMB_BITS = BITS - (N - 1) * 120`. We bound the top limb by
-/// `2^{TOP_LIMB_BITS + 1}` instead, the size of the top limb of `double_modulus`, which is
-/// added to the top limb of negated terms. After
+/// (top), where `TOP_LIMB_BITS = BITS - (N - 1) * 120`. After
 /// `compute_linear_expressions` sums `LHS_N` terms per side, each non-top limb of
 /// `lhs_linear` is at most `LHS_N * (2^{120} - 1)` and the top limb is at most
 /// `LHS_N * (2^{TOP_LIMB_BITS} - 1)`. Similarly for `rhs_linear`.
@@ -521,15 +440,12 @@ fn validate_expression_is_zero<let N: u32>(mut limbs: [Field; N]) {
 ///   - Position `N - 2`: `N - 1` pairs, all non-top * non-top. Dominates when
 ///     `TOP_LIMB_BITS < 120` (the common case).
 ///   - Position `N - 1`: `N` pairs, two of which mix a top limb with a non-top limb.
-///     Dominates only when `TOP_LIMB_BITS + 1 == 120`.
+///     Dominates only when `TOP_LIMB_BITS == 120`.
 ///
 /// ## Note on negation flags
-/// When a flag is true the per-term contribution becomes `double_modulus[i] - term[i]`,
-/// which can reach `~3 * 2^{120}` per non-top limb (vs `2^{120} - 1` when unflagged).
-/// The checks below use the unflagged bound; with flags the actual max could be
-/// `~9x` larger. However, flags are per-term (not per-limb), so the relative
-/// ordering of limb positions is preserved: `N - 2` and `N - 1` remain the correct
-/// positions to check.
+/// When a flag is true the term is subtracted rather than added, so each limb of `lhs_linear`
+/// and `rhs_linear` lies in `(-LHS_N * 2^{120}, LHS_N * 2^{120})`, and the bounds below bound the
+/// absolute value of each product limb.
 ///
 /// ## Note on `Field.lt()` precision
 /// These checks use `Field` arithmetic. If the product exceeds the field modulus
@@ -537,7 +453,7 @@ fn validate_expression_is_zero<let N: u32>(mut limbs: [Field; N]) {
 /// requires roughly `NUM_PRODUCTS * LHS_N * RHS_N * (N - 1) > 2^{14}`, which is
 /// unrealistic in practice.
 pub(crate) fn assert_product_limbs_fit_in_246_bits<let N: u32, let BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32>() {
-    let top_limb_bits: u128 = (BITS + 1 - (N - 1) * 120) as u128;
+    let top_limb_bits: u128 = (BITS - (N - 1) * 120) as u128;
     let max_non_top_limb: Field = (TWO_POW_120 - 1) as Field;
     let max_top_limb: Field = ((1u128 << top_limb_bits) - 1) as Field;
 
@@ -564,16 +480,7 @@ pub(crate) fn assert_product_limbs_fit_in_246_bits<let N: u32, let BITS: u32, le
     );
 }
 
-/// Constrain a degree-2 `BigInt` expression to be equal to 0 (mod `MOD`)
-///
-//
-/// This method is intended for relations where the remainder term of the
-/// degree-2 expression is exactly zero as an integer relation. In other words,
-/// we use it only when we expect:
-///
-///     \sum (L_i * R_i) + \sum (A_i) - QUOTIENT * MOD = 0
-///
-/// as integers, not just modulo the circuit field or `BigInt` field.
+/// Constrain a degree-2 `BigInt` expression to be equal to 0 over the integers
 ///
 /// ## Details
 ///
@@ -581,17 +488,20 @@ pub(crate) fn assert_product_limbs_fit_in_246_bits<let N: u32, let BITS: u32, le
 ///
 ///       \sum_{i=0}^{NUM_PRODUCTS-1} (L_i * R_i)
 ///     + \sum_{i=0}^{ADD_N-1} (A_i)
-///     - QUOTIENT * MOD
 ///     = 0
 ///
-/// Each `L_i`, `R_i`, `A_i` is an `N`-limb `BigInt` assembled from the
-/// `(terms, flags)` arrays. For example, for `i = 0`:
+/// Each `L_i`, `R_i` is a linear combination of `BigInt` terms assembled from the
+/// `(terms, flags)` arrays, where a `true` flag negates the term. For example, for `i = 0`:
 ///
-///     L_0 = \sum_{j=0}^{LHS_N-1} lhs[0][j]    as a `BigInt`
-///     R_0 = \sum_{j=0}^{RHS_N-1} rhs[0][j]    as a `BigInt`
+///     L_0 = \sum_{j=0}^{LHS_N-1} (-1)^{lhs_flags[0][j]} lhs[0][j]
+///     R_0 = \sum_{j=0}^{RHS_N-1} (-1)^{rhs_flags[0][j]} rhs[0][j]
 ///
 /// The intent is to capture a generic degree-2 expression within Noir's
 /// limitations (no efficient dynamically sized vectors).
+///
+/// As the relation must hold exactly, and every term is range-checked to `BITS` bits, an
+/// expression such as `x * y - z = 0` constrains `z` to be exactly `x * y`, and so fails if
+/// `x * y >= 2^BITS`.
 ///
 /// The expensive parts of this algorithm are:
 ///   1. evaluating the limb products required to compute the `L_i * R_i` values;
@@ -619,36 +529,22 @@ pub(crate) fn assert_product_limbs_fit_in_246_bits<let N: u32, let BITS: u32, le
 ///   * we also allow linear combinations inside the products, which further increases the bound
 ///     on a `quadratic` limb
 ///
-///   * finally, when `is_negative` flag is set, we effectively add 2 * MOD to each limb, where
-///     2 * MOD limbs are structured in such a way that they all are > 2**120
-///
-/// We allow `NUM_PRODUCTS < 64` completeness-wise, but it certainly can overflow the 2^{240 + `twiddle_factor=6`} bound
-/// in edge cases. See completeness section for an example.
-///
 /// ## Assumptions
 ///
-/// Each `BigInt` value used in this gadget is already range constrained:
+/// Each `BigInt` value used in this gadget is range constrained by this function:
 ///   - limbs `0..N-2` satisfy `limb_i < 2^{120}`
 ///   - limb `N-1` satisfies `limb_{N-1} < 2^{TOP_LIMB_BITS}`
 ///
 /// ## Completeness
-/// If an honest prover supplies inputs that satisfy the assumptions above,
-/// it can always find a `quotient` and `borrow_flags` such that the integer
-/// relation holds and all constraints are satisfied.
-///
-/// The only possibility to break completeness is by providing too many inputs, for example:
-///
-///     (a0 + a1 + a2) * (b0 + b1 + b2) + ... (60 times), with each a_i having its limbs at maximum value of 2^{120} - 1
-///     The middle limb will contain a value that will definitely overflow the 2^{246} bound.
+/// If an honest prover supplies inputs that satisfy the assumptions above and the relation, it
+/// can always find `borrow_flags` such that all constraints are satisfied, provided every limb of
+/// the expression is below `2^{246}` in absolute value. This is enforced at compile time by
+/// `assert_product_limbs_fit_in_246_bits`.
 ///
 /// ## Soundness
-/// This function enforces that the degree-2 relation holds modulo `MOD = 2^BITS`. Every term is
-/// range-checked to `BITS` bits, so each term is the unique representative of its value in
-/// `[0, MOD)`. In particular, for a multiplication relation
-///
-///     x * y - z = 0 (mod MOD)
-///
-/// a prover cannot substitute `z' = z + MOD` for `z`, as `z' >= 2^BITS` fails the range check.
+/// `validate_expression_is_zero` constrains the (borrow-adjusted) limbs to encode `0` over the
+/// integers. The magnitudes of all limbs and carries are far below the circuit field modulus, so
+/// the `Field` constraints coincide with the corresponding integer relations.
 pub(crate) fn evaluate_quadratic_expression<let N: u32, let BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
     lhs_terms: &[[[u128; N]; LHS_N]; NUM_PRODUCTS],
     lhs_flags: &[[bool; LHS_N]; NUM_PRODUCTS],
@@ -667,7 +563,7 @@ pub(crate) fn evaluate_quadratic_expression<let N: u32, let BITS: u32, let LHS_N
     });
     linear_terms.for_each(|term: [u128; N]| validate_in_range::<N, BITS>(&term));
 
-    let expression_limbs: [Field; 2 * N - 1] = compute_quadratic_expression_with_modulus::<N, BITS, LHS_N, RHS_N, NUM_PRODUCTS, ADD_N>(
+    let expression_limbs: [Field; 2 * N - 1] = compute_quadratic_expression_limbs::<N, LHS_N, RHS_N, NUM_PRODUCTS, ADD_N>(
         lhs_terms,
         lhs_flags,
         rhs_terms,
@@ -678,96 +574,69 @@ pub(crate) fn evaluate_quadratic_expression<let N: u32, let BITS: u32, let LHS_N
     validate_expression_is_zero(expression_limbs);
 }
 
-// ------------------------------ UDIV MOD EXPRESSION ------------------------------
+// ------------------------------ MUL ADD EXPRESSION ------------------------------
 
-/// Given a `udiv_mod` `BigInt` expression that is equal to `0` over integers, compute the borrow flags (unconstrained)
+/// Compute the borrow flags for the expression `lhs * rhs + addend - result`, which is equal to
+/// `0` over the integers (unconstrained)
 ///
-/// Mirror function of `__compute_quadratic_expression_with_borrow_flags` optimized to compute borrow flags of an expression:
-///     divisor * quotient + remainder - numerator = 0
-/// see `__compute_quadratic_expression_with_borrow_flags` for details
-///
-/// The main differences from it are:
-///     1. `product_limbs` stores only the least-significant `N` limbs of
-///         `quotient * divisor + remainder`. This is sufficient to compute the
-///         borrow flags for the first `N` limbs of
-///             quotient * divisor + remainder - numerator.
-///
-///         For an honest `udiv_mod` relation we also have
-///             quotient * divisor <= numerator < B^N,
-///         so the true product fits into `N` limbs as an integer.
-///     2. Instead of subtracting `quotient * MOD` we subtract `numerator`. This is due to the fact that
-///        we no longer work over `MOD`, and we can't really do subtractions as we did previously: `double_modulus - x`
-///
-/// ## Note
-/// We leave the borrow values at 2^{246}, even though we should never reach this bound with just 3 terms
-/// The cases where it can happen are: N >= 64 (middle limb will have 64 additions). And it is a pure completeness issue
-/// But the rest of the library will probably not work with that massive number anyway
-unconstrained fn __compute_udiv_mod_expression_with_borrow_flags<let N: u32, let BITS: u32>(
-    numerator: &[u128; N],
-    divisor: &[u128; N],
-    quotient: &[u128; N],
-    remainder: &[u128; N],
+/// A specialisation of `__compute_quadratic_expression_borrow_flags` for a single product of
+/// non-negative values. As `lhs * rhs + addend = result < 2^{120 * N}` for an honest witness, only
+/// the least-significant `N` limbs of the product are needed.
+unconstrained fn __compute_mul_add_expression_borrow_flags<let N: u32>(
+    lhs: &[u128; N],
+    rhs: &[u128; N],
+    addend: &[u128; N],
+    result: &[u128; N],
 ) -> [bool; N - 1] {
     let mut product_limbs: [Field; N] = [0; N];
-    let mut numerator_field: [Field; N] = [0; N];
+    let mut result_field: [Field; N] = [0; N];
     for i in 0..N {
         for j in 0..N - i {
-            product_limbs[i + j] += (quotient[i] as Field) * (divisor[j] as Field);
+            product_limbs[i + j] += (lhs[i] as Field) * (rhs[j] as Field);
         }
-        product_limbs[i] += (remainder[i] as Field);
+        product_limbs[i] += (addend[i] as Field);
 
-        numerator_field[i] = numerator[i] as Field;
+        result_field[i] = result[i] as Field;
     }
 
-    __compute_borrow_flags(product_limbs, numerator_field)
+    __compute_borrow_flags(product_limbs, result_field)
 }
 
-/// Constrained version of `__compute_udiv_mod_expression_with_borrow_flags`
+/// Constrained version of `__compute_mul_add_expression_borrow_flags`
 ///
-/// Computes the following expression in-circuit:
-///     quotient * divisor + remainder - numerator = 0
-///
-/// Mirror function of `compute_quadratic_expression_with_modulus`. See it for details.
+/// Computes the limbs of `lhs * rhs + addend - result` in-circuit, with borrow flags applied.
 ///
 /// ## Soundness note
-/// We compute the full convolution `quotient * divisor` into `2N - 1` limbs
-/// and then constrain all limbs with index `i >= N` to be zero. For `i >= N`
-/// the value `expression_limbs_full[i]` is a sum of products
-///     sum_{j+k=i} quotient[j] * divisor[k]
-/// with no contribution from `numerator` or `remainder`.
+/// We compute the full convolution `lhs * rhs` into `2N - 1` limbs and then constrain all limbs
+/// with index `i >= N` to be zero. For `i >= N` the value `expression_limbs_full[i]` is a sum of
+/// products
+///     sum_{j+k=i} lhs[j] * rhs[k]
+/// with no contribution from `addend` or `result`.
 ///
-/// Every limb of `quotient` and `divisor` is range-constrained to be a 120-bit
-/// integer, so each product term is < 2^{240} and each coefficient of the
-/// convolution is strictly smaller than the field modulus. In this regime,
-/// the constraint `expression_limbs_full[i] == 0` in `Field` coincides with
-/// the same equality over the integers.
+/// Every limb of `lhs` and `rhs` is range-constrained to be a 120-bit integer, so each product
+/// term is non-negative and < 2^{240}, and each coefficient of the convolution is strictly smaller
+/// than the field modulus. In this regime, the constraint `expression_limbs_full[i] == 0` in
+/// `Field` coincides with the same equality over the integers, and as every product is
+/// non-negative, it holds exactly when every product in the limb is zero.
 ///
-/// Vanishing of all high limbs `i >= N` is therefore an integer statement that
-/// the product has degree < N, i.e.
-///     quotient * divisor < 2^{120 * N},
-/// so `quotient * divisor` fits into `N` 120-bit limbs and does not overflow.
-fn compute_udiv_mod_expression<let N: u32, let BITS: u32>(
-    numerator: &[u128; N],
-    divisor: &[u128; N],
-    quotient: &[u128; N],
-    remainder: &[u128; N],
+/// Vanishing of all high limbs `i >= N` is therefore an integer statement that the product has
+/// degree < N, i.e. `lhs * rhs < 2^{120 * N}`.
+fn compute_mul_add_expression<let N: u32>(
+    lhs: &[u128; N],
+    rhs: &[u128; N],
+    addend: &[u128; N],
+    result: &[u128; N],
 ) -> [Field; N] {
-    // Safety: use an unconstrained function to compute the value of the quotient and borrow_flags out-of-circuit
-    let borrow_flags: [bool; N - 1] = unsafe {
-        __compute_udiv_mod_expression_with_borrow_flags::<N, BITS>(
-            numerator,
-            divisor,
-            quotient,
-            remainder,
-        )
-    };
+    // Safety: the borrow flags are constrained by `validate_expression_is_zero`
+    let borrow_flags: [bool; N - 1] =
+        unsafe { __compute_mul_add_expression_borrow_flags::<N>(lhs, rhs, addend, result) };
 
     let mut expression_limbs_full: [Field; 2 * N - 1] = [0; 2 * N - 1];
     for i in 0..N {
         for j in 0..N {
-            expression_limbs_full[i + j] += (quotient[i] as Field) * (divisor[j] as Field);
+            expression_limbs_full[i + j] += (lhs[i] as Field) * (rhs[j] as Field);
         }
-        expression_limbs_full[i] += (remainder[i] as Field) - (numerator[i] as Field);
+        expression_limbs_full[i] += (addend[i] as Field) - (result[i] as Field);
     }
 
     let mut expression_limbs: [Field; N] = [0; N];
@@ -781,49 +650,37 @@ fn compute_udiv_mod_expression<let N: u32, let BITS: u32>(
     apply_borrow_flags(expression_limbs, borrow_flags)
 }
 
-/// Constrain a `udiv_mod` `BigInt` expression to be equal to 0
+/// Constrain `lhs * rhs + addend == result` over the integers
 ///
-/// Mirror function of `evaluate_quadratic_expression`
+/// All four values are range-checked to be valid `BigInt` values, i.e. `< 2^BITS`. In particular
+/// `lhs * rhs + addend < 2^BITS`, so the operation does not overflow.
 ///
-/// ## Details
-///
-/// The constrained expression, viewed over the integers, is:
-///
-///     quotient * divisor + remainder - numerator = 0
+/// This is used for multiplication (`addend = 0`) and for integer division with remainder
+/// (`quotient * divisor + remainder == numerator`).
 ///
 /// ## Completeness
-/// If an honest prover supplies valid `BigInt` inputs that satisfy the equation,
-/// it can always find `borrow_flags` such that the integer
-/// relation holds and all constraints are satisfied.
-///
-/// The only possibility to break completeness is by providing a `BigInt` with `N >= 64`
-/// See `__compute_udiv_mod_expression_with_borrow_flags` for details
+/// If an honest prover supplies valid `BigInt` inputs that satisfy the equation, it can always
+/// find `borrow_flags` such that all constraints are satisfied, provided `N < 64`.
 ///
 /// ## Soundness
-/// This function is conditionally sound: it enforces that the degree-2 relation
-/// holds over the integers, but it does not, by itself, enforce that
-/// this relation is unique for given `numerator` and `divisor`
-///
-/// For example, if the true relation is
-///     quotient * divisor + remainder - numerator = 0
-///
-/// then we can set quotient' = quotient - 1, remainder' = remainder + divisor
-pub(crate) fn validate_udiv_mod_expression<let N: u32, let BITS: u32>(
-    numerator: &[u128; N],
-    divisor: &[u128; N],
-    quotient: &[u128; N],
-    remainder: &[u128; N],
+/// See `compute_mul_add_expression` and `validate_expression_is_zero`. Note that this only
+/// constrains the relation itself: e.g. for division it does not by itself enforce
+/// `remainder < divisor`.
+pub(crate) fn validate_mul_add_expression<let N: u32, let BITS: u32>(
+    lhs: &[u128; N],
+    rhs: &[u128; N],
+    addend: &[u128; N],
+    result: &[u128; N],
 ) {
-    // The relation `quotient * divisor + remainder - numerator = 0` is a single
-    // degree-2 product with no linear combinations, i.e. NUM_PRODUCTS = LHS_N = RHS_N = 1.
+    // The relation `lhs * rhs + addend - result = 0` is a single degree-2 product with no linear
+    // combinations, i.e. NUM_PRODUCTS = LHS_N = RHS_N = 1.
     assert_product_limbs_fit_in_246_bits::<N, BITS, 1, 1, 1>();
 
-    validate_in_range::<N, BITS>(numerator);
-    validate_in_range::<N, BITS>(divisor);
-    validate_in_range::<N, BITS>(quotient);
-    validate_in_range::<N, BITS>(remainder);
+    validate_in_range::<N, BITS>(lhs);
+    validate_in_range::<N, BITS>(rhs);
+    validate_in_range::<N, BITS>(addend);
+    validate_in_range::<N, BITS>(result);
 
-    let expression_limbs: [Field; N] =
-        compute_udiv_mod_expression::<N, BITS>(numerator, divisor, quotient, remainder);
+    let expression_limbs: [Field; N] = compute_mul_add_expression::<N>(lhs, rhs, addend, result);
     validate_expression_is_zero(expression_limbs);
 }

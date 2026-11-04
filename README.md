@@ -12,7 +12,7 @@ Efficient constrained and unconstrained arithmetic over large unsigned integers 
 The Noir standard library provides unsigned integers up to 128 bits and a native `Field` of ~254 bits. This library provides fixed-width unsigned integers of 256 bits and above.
 
 > [!NOTE]
-> This library is derived from [noir-bignum](https://github.com/noir-lang/noir-bignum), with all finite-field functionality removed. This library provides **checked** arithmetic, where overflow and underflow cause constraint failures. `+` and `-` are checked; `*` and `evaluate_quadratic_expression` currently still wrap (i.e. are performed modulo `2^BITS`).
+> This library is derived from [noir-bignum](https://github.com/noir-lang/noir-bignum), with all finite-field functionality removed. All arithmetic is **checked**: overflow and underflow cause constraint failures rather than wrapping.
 
 ## Noir version compatibility
 
@@ -81,7 +81,7 @@ At least two limbs are required. Single-limb types are not supported.
 The overloaded operators are constrained:
 
 - `+`, `-`: checked addition and subtraction, which fail if the result overflows $2^X$ or is negative
-- `*`: multiplication modulo $2^X$ (wrapping)
+- `*`: checked multiplication, which fails if the product overflows $2^X$
 - `/`: integer division (rounding down)
 - `==`: equality
 - `<`, `<=`, `>`, `>=`: integer comparison
@@ -125,7 +125,7 @@ Every constrained operator performs its own reduction and range checks, which ma
 use bigint::{BigInt, U256};
 use bigint::evaluate_quadratic_expression;
 
-// Check that (x1 * x2) + x3 == expected (mod 2^256)
+// Check that (x1 * x2) + x3 == expected
 fn main(x1: U256, x2: U256, x3: U256, expected: U256) {
     // Safety: the result is constrained below
     let res = unsafe { x1.__mul(&x2).__add(&x3) };
@@ -159,13 +159,13 @@ pub fn evaluate_quadratic_expression<T: BigInt, let LHS_N: u32, let RHS_N: u32, 
 
 This constrains
 
-$$\sum_{i=0}^{\text{NUM\_PRODUCTS}-1} \left(\sum_j \pm \text{lhs}_{i,j}\right)\left(\sum_k \pm \text{rhs}_{i,k}\right) + \sum_l \pm \text{linear}_l \equiv 0 \pmod{2^X}$$
+$$\sum_{i=0}^{\text{NUM\_PRODUCTS}-1} \left(\sum_j \pm \text{lhs}_{i,j}\right)\left(\sum_k \pm \text{rhs}_{i,k}\right) + \sum_l \pm \text{linear}_l = 0$$
 
-where a `true` flag negates the corresponding term.
+over the integers, where a `true` flag negates the corresponding term. As every term is range-checked to $X$ bits, a relation such as `x * y - z = 0` constrains `z` to be exactly `x * y`, and fails if the product overflows.
 
 The combination of `NUM_PRODUCTS`, `LHS_N` and `RHS_N` must be small enough that intermediate product limbs do not exceed $2^{246}$. This is enforced, and expressions which could overflow are rejected. As a rough guide, keep `NUM_PRODUCTS * LHS_N * RHS_N` well below 64.
 
-`compute_quadratic_expression` is the unconstrained counterpart. It returns the quotient and remainder of such an expression.
+`compute_quadratic_expression` is the unconstrained counterpart: it returns the value of an expression, failing if the value is negative or overflows $2^X$.
 
 ## Benchmarks
 
