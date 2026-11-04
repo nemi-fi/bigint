@@ -5,7 +5,7 @@ use crate::fns::{
     unconstrained_helpers::{
         __from_field, compute_add_flags, compute_borrow_flags, compute_gte_flags, compute_sub_flags,
     },
-    unconstrained_ops::{__add, __mul, __neg, __sqr, __sub, __udiv_mod},
+    unconstrained_ops::{__add, __mul, __sqr, __sub, __udiv_mod},
 };
 
 use crate::fns::modulus::get_modulus;
@@ -606,22 +606,6 @@ pub fn cmp<let N: u32, let MOD_BITS: u32>(lhs: &[u128; N], rhs: &[u128; N]) -> O
 }
 
 // ------------------------------ ARITHMETIC FUNCTIONS ------------------------------
-
-/// Negate a `BigInt` value
-///
-/// Computes `result = 0 - val (mod MOD)` using constrained subtraction function
-///
-/// All constraints and soundness details are handled inside `sub`.
-pub fn neg<let N: u32, let MOD_BITS: u32>(val: &[u128; N]) -> [u128; N] {
-    if std::runtime::is_unconstrained() {
-        // Safety: unconstrained runtime requires no constraints
-        unsafe {
-            __neg(&get_modulus::<N, MOD_BITS>(), val)
-        }
-    } else {
-        sub::<N, MOD_BITS>(&[0; N], val)
-    }
-}
 
 /// Add two `BigInt` values
 ///

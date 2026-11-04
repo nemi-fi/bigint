@@ -52,18 +52,6 @@ pub(crate) unconstrained fn __gte<let N: u32>(lhs: &[u128; N], rhs: &[u128; N]) 
 
 // ------------------------------ ARITHMETIC FUNCTIONS ------------------------------
 
-/// Negates a `BigInt` value, returning `-x mod (MOD)` (unconstrained)
-///
-/// ## Note
-/// The input is assumed to be less than modulus
-pub unconstrained fn __neg<let N: u32>(modulus: &[u128; N], limbs: &[u128; N]) -> [u128; N] {
-    if __is_zero(limbs) {
-        *limbs
-    } else {
-        __helper_sub(modulus, limbs)
-    }
-}
-
 /// Adds two `BigInt` values with modular reduction (unconstrained)
 ///
 /// Sums the limbs one by one, keeping the carry.
@@ -103,7 +91,11 @@ pub unconstrained fn __sub<let N: u32>(
     lhs: &[u128; N],
     rhs: &[u128; N],
 ) -> [u128; N] {
-    __add(modulus, lhs, &__neg(modulus, rhs))
+    if __is_zero(rhs) {
+        *lhs
+    } else {
+        __add(modulus, lhs, &__helper_sub(modulus, rhs))
+    }
 }
 
 /// Multiply `x` and `y` and reduce, returning (Q, R) (unconstrained).
