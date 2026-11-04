@@ -122,16 +122,16 @@ fn test_evaluate_quadratic_expression_rejects_wrapped_difference() {
     );
 }
 
-// The `udiv_mod` relation is exact, so the quotient cannot hide an extra `2^BITS`
+// The `div_rem` relation is exact, so the quotient cannot hide an extra `2^BITS`
 #[test(should_fail)]
-fn test_udiv_mod_extra_modulus_regression(xseed: [u8; 1], yseed: [u8; 2]) {
+fn test_div_rem_extra_modulus_regression(xseed: [u8; 1], yseed: [u8; 2]) {
     let x: U256 = U256::derive_from_seed(xseed);
     let y: U256 = U256::derive_from_seed(yseed);
 
     let modulus: [u128; 3] = two_pow_bits::<3, 256>();
 
     // Safety: test code
-    let (q, r): (U256, U256) = unsafe { x.__udiv_mod(&y) };
+    let (q, r): (U256, U256) = unsafe { x.__div_rem(&y) };
 
     let mut q_: [u128; 3] = q.get_limbs();
     // Safety: test code
@@ -857,7 +857,7 @@ fn test_mul_U256_with_one() {
     assert(c == a);
 }
 
-fn test_div_udiv_mod_equality<let N: u32, BN>()
+fn test_div_div_rem_equality<let N: u32, BN>()
 where
     BN: BigInt,
 {
@@ -867,13 +867,13 @@ where
     let two: BN = BN::one() + BN::one();
 
     let c: BN = a / two;
-    let (d, _): (BN, BN) = a.udiv_mod(&two);
+    let (d, _): (BN, BN) = a.div_rem(&two);
 
     assert(c == d);
 }
 
 #[test]
-fn test_udiv_mod_U256() {
+fn test_div_rem_U256() {
     let a: U256 = U256::from_limbs([
         0xec0ca0c0adce359af6fcea1a7ab2dc,
         0xdd52c4aa3fde93685d3f7cc285de32,
@@ -881,7 +881,7 @@ fn test_udiv_mod_U256() {
     ]);
     let b: U256 = U256::from_limbs([12, 0, 0]);
 
-    let (q, r): (U256, U256) = a.udiv_mod(&b);
+    let (q, r): (U256, U256) = a.div_rem(&b);
 
     // Safety: test code
     let product: U256 = unsafe { q.__mul(&b).__add(&r) };
@@ -889,20 +889,20 @@ fn test_udiv_mod_U256() {
 }
 
 #[test]
-fn test_1_udiv_mod_2() {
+fn test_1_div_rem_2() {
     let _0: U256 = U256::zero();
     let _1: U256 = U256::one();
     let _2: U256 = _1 + _1;
-    assert(_1.udiv_mod(&_2) == (_0, _1));
+    assert(_1.div_rem(&_2) == (_0, _1));
 }
 
 #[test]
-fn test_20_udiv_mod_11() {
+fn test_20_div_rem_11() {
     let _1: U256 = U256::one();
     let _2_POW_120: U256 = U256::from_limbs([0, 1, 0]);
     let _2_POW_121: U256 = U256::from_limbs([0, 2, 0]);
     let divisor: U256 = _2_POW_120 + _1;
-    assert(_2_POW_121.udiv_mod(&divisor) == (_1, _2_POW_120 - _1));
+    assert(_2_POW_121.div_rem(&divisor) == (_1, _2_POW_120 - _1));
 }
 
 //// Set up parametrized tests
@@ -940,8 +940,8 @@ fn test_mul_U256() {
 }
 
 #[test]
-fn test_div_udiv_mod_equality_U256() {
-    test_div_udiv_mod_equality::<3, U256>();
+fn test_div_div_rem_equality_U256() {
+    test_div_div_rem_equality::<3, U256>();
 }
 
 // U2048
@@ -977,8 +977,8 @@ fn test_mul_U2048() {
 }
 
 #[test]
-fn test_div_udiv_mod_equality_U2048() {
-    test_div_udiv_mod_equality::<18, U2048>();
+fn test_div_div_rem_equality_U2048() {
+    test_div_div_rem_equality::<18, U2048>();
 }
 
 // Other
@@ -998,11 +998,29 @@ fn test_mul_u512() {
     test_mul::<5, crate::types::U512::U512>();
 }
 
+#[test]
+fn test_rem_U256() {
+    assert(U256::from(20) % U256::from(11) == U256::from(9));
+    assert(U256::from(22) % U256::from(11) == U256::zero());
+    assert(U256::from(3) % U256::from(11) == U256::from(3));
+}
+
+#[test]
+fn test_div_rem_consistency_U2048() {
+    let a: U2048 = U2048::derive_from_seed([1, 2, 3, 4]);
+    let b: U2048 = small_from_seed([5, 6, 7, 8]);
+    let (q, r): (U2048, U2048) = a.div_rem(&b);
+    assert(q == a / b);
+    assert(r == a % b);
+    assert(r < b);
+    assert(q * b + r == a);
+}
+
 // ------------------------------ DIVISION BY ZERO TESTS ------------------------------
 
 #[test(should_fail_with = "attempt to divide by zero")]
-fn test_udiv_mod_by_zero() {
-    let _ = U256::from(7).udiv_mod(&U256::zero());
+fn test_div_rem_by_zero() {
+    let _ = U256::from(7).div_rem(&U256::zero());
 }
 
 #[test(should_fail_with = "attempt to divide by zero")]
@@ -1011,13 +1029,13 @@ fn test_div_by_zero() {
 }
 
 #[test(should_fail_with = "attempt to divide by zero")]
-fn test_umod_by_zero() {
-    let _ = U256::from(7).umod(&U256::zero());
+fn test_rem_by_zero() {
+    let _ = U256::from(7) % U256::zero();
 }
 
 #[test(should_fail_with = "attempt to divide by zero")]
-unconstrained fn test_unconstrained_udiv_mod_by_zero() {
-    let _ = U256::from(7).__udiv_mod(&U256::zero());
+unconstrained fn test_unconstrained_div_rem_by_zero() {
+    let _ = U256::from(7).__div_rem(&U256::zero());
 }
 
 #[test(should_fail_with = "attempt to divide by zero")]

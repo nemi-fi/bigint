@@ -5,7 +5,7 @@ use crate::fns::{
     unconstrained_helpers::{
         __from_field, compute_borrow_flags, compute_carry_flags, compute_gte_flags,
     },
-    unconstrained_ops::{__add, __mul, __sub, __udiv_mod},
+    unconstrained_ops::{__add, __div_rem, __mul, __sub},
 };
 
 use std::cmp::Ordering;
@@ -485,8 +485,9 @@ pub fn mul<let N: u32, let BITS: u32>(lhs: [u128; N], rhs: [u128; N]) -> [u128; 
 /// Compute the `BigInt` integer division with remainder
 ///
 /// Computes `quotient = floor(numerator / divisor)` and
-/// `remainder = numerator % divisor` by:
-///   1. Computing `(quotient, remainder)` out of circuit via `__udiv_mod`.
+/// `remainder = numerator % divisor`, i.e. Euclidean division (which coincides with floored and
+/// truncated division for unsigned integers), by:
+///   1. Computing `(quotient, remainder)` out of circuit via `__div_rem`.
 ///   2. Constraining the quadratic relation
 ///        quotient * divisor + remainder - numerator = 0
 ///      with `validate_mul_add_expression`.
@@ -506,12 +507,12 @@ pub fn mul<let N: u32, let BITS: u32>(lhs: [u128; N], rhs: [u128; N]) -> [u128; 
 /// ## Note
 /// Enforcing `divisor != 0` is not necessary. `remainder < divisor`
 /// Already enforces this.
-pub fn udiv_mod<let N: u32, let BITS: u32>(
+pub fn div_rem<let N: u32, let BITS: u32>(
     numerator: &[u128; N],
     divisor: &[u128; N],
 ) -> ([u128; N], [u128; N]) {
-    // Safety: We constrain the result of __udiv_mod immediately after
-    let (quotient, remainder): ([u128; N], [u128; N]) = unsafe { __udiv_mod(numerator, divisor) };
+    // Safety: We constrain the result of __div_rem immediately after
+    let (quotient, remainder): ([u128; N], [u128; N]) = unsafe { __div_rem(numerator, divisor) };
     if !std::runtime::is_unconstrained() {
         // quotient * divisor + remainder - numerator = 0
         validate_mul_add_expression::<N, BITS>(&quotient, divisor, &remainder, numerator);
@@ -524,15 +525,15 @@ pub fn udiv_mod<let N: u32, let BITS: u32>(
 /// Compute the `BigInt` integer division.
 ///
 /// Returns `floor(numerator / divisor)`.
-/// All constraints and soundness details are handled inside `udiv_mod`.
+/// All constraints and soundness details are handled inside `div_rem`.
 pub fn div<let N: u32, let BITS: u32>(numerator: &[u128; N], divisor: &[u128; N]) -> [u128; N] {
-    udiv_mod::<N, BITS>(numerator, divisor).0
+    div_rem::<N, BITS>(numerator, divisor).0
 }
 
 /// Compute the `BigInt` remainder.
 ///
 /// Returns `numerator % divisor`.
-/// All constraints and soundness details are handled inside `udiv_mod`.
-pub fn umod<let N: u32, let BITS: u32>(numerator: &[u128; N], divisor: &[u128; N]) -> [u128; N] {
-    udiv_mod::<N, BITS>(numerator, divisor).1
+/// All constraints and soundness details are handled inside `div_rem`.
+pub fn rem<let N: u32, let BITS: u32>(numerator: &[u128; N], divisor: &[u128; N]) -> [u128; N] {
+    div_rem::<N, BITS>(numerator, divisor).1
 }

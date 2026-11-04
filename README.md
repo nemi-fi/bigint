@@ -82,17 +82,17 @@ The overloaded operators are constrained:
 
 - `+`, `-`: checked addition and subtraction, which fail if the result overflows $2^X$ or is negative
 - `*`: checked multiplication, which fails if the product overflows $2^X$
-- `/`: integer division (rounding down)
+- `/`, `%`: integer division (rounding down) and remainder, which fail if the divisor is zero
 - `==`: equality
 - `<`, `<=`, `>`, `>=`: integer comparison
 
 Additional constrained methods:
 
-- `udiv_mod`, `umod`: integer division with remainder, and remainder only
+- `div_rem`: integer division with remainder, i.e. `(a / b, a % b)`. Computing both together is cheaper than computing `/` and `%` separately
 
 ### Unconstrained arithmetic
 
-Every arithmetic operation has an unconstrained counterpart prefixed with `__`: `__add`, `__sub`, `__mul`, `__div`, `__udiv_mod`, `__pow`, `__eq`, `__is_zero`.
+Every arithmetic operation has an unconstrained counterpart prefixed with `__`: `__add`, `__sub`, `__mul`, `__div`, `__div_rem`, `__pow`, `__eq`, `__is_zero`.
 
 These generate no constraints. Their results must be constrained, ideally with `evaluate_quadratic_expression` (see below).
 
