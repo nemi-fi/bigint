@@ -70,9 +70,7 @@ pub struct U320 {
 }
 ```
 
-The `limbs` array must have `N = ceil(BITS / 120)` elements. At least two limbs are required, and the top limb can hold at most 118 bits, so widths where `BITS % 120` is `0` or `119` are not supported. These are all checked at compile time.
-
-At least two limbs are required. Single-limb types are not supported.
+The `limbs` array must have `N = ceil(BITS / 120)` elements. Between 2 and 129 limbs are supported (i.e. widths from 121 to 15,478 bits), and the top limb can hold at most 118 bits, so widths where `BITS % 120` is `0` or `119` are not supported. These are all checked at compile time.
 
 ## Methods
 

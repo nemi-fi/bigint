@@ -145,7 +145,7 @@ comptime fn make_bench(m: Module, typ_path: Quoted) -> Quoted {
         }
 
         // `evaluate_quadratic_expression` bounds `NUM_PRODUCTS * LHS_N * RHS_N` so that
-        // the product limbs cannot exceed 2^246 (see `assert_product_limbs_fit_in_246_bits`).
+        // the product limbs cannot exceed 2^246 (see `assert_product_limbs_fit`).
         // The tightest configuration benchmarked here is U2048 (`N = 18`), which admits at
         // most 3 sub-products in total, so these benchmarks use single-term linear
         // combinations and at most 3 products.
