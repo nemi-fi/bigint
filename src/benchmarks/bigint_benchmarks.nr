@@ -204,15 +204,11 @@ comptime fn make_bench(m: Module, typ_path: Quoted) -> Quoted {
 
 // the types we will be benchmarking
 // type U256
-// type U384
 // type U512
 // type U2048
 
 #[make_bench(quote { crate::types::U256::U256 })]
 mod U256_Bench {}
-
-#[make_bench(quote { crate::types::U384::U384 })]
-mod U384_Bench {}
 
 #[make_bench(quote { crate::types::U512::U512 })]
 mod U512_Bench {}

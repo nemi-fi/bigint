@@ -8,7 +8,7 @@ use crate::fns::unconstrained_helpers::__helper_add;
 
 use crate::types::U2048::U2048;
 use crate::types::U256::U256;
-use crate::types::U384::U384;
+use crate::types::U512::U512;
 
 // Test-only unsigned integer types whose values always fit within the native field
 // (`MOD_BITS <= 254`), used to exercise code paths specific to such types.
@@ -374,13 +374,14 @@ fn test_from_field_3_digits() {
 }
 
 #[test]
-fn test_from_field_4_digits() {
+fn test_from_field_5_digits() {
     let field: Field = -1;
-    let result: U384 = U384::from(field);
-    let expected: U384 = U384::from_limbs([
+    let result: U512 = U512::from(field);
+    let expected: U512 = U512::from_limbs([
         0x33e84879b9709143e1f593f0000000,
         0x4e72e131a029b85045b68181585d28,
         0x3064,
+        0x0,
         0x0,
     ]);
     assert(result == expected);
@@ -399,11 +400,12 @@ fn test_from_field_mod_bits_lt_254() {
 // MOD_BITS > 254: validates via validate_gt(GRUMPKIN, result).
 #[test]
 fn test_from_field_mod_bits_gt_254() {
-    let result: [u128; 4] = from_field::<4, 385>(-1 as Field);
+    let result: [u128; 5] = from_field::<5, 513>(-1 as Field);
     assert(result[0] == GRUMPKIN_MODULUS[0] - 1);
     assert(result[1] == GRUMPKIN_MODULUS[1]);
     assert(result[2] == GRUMPKIN_MODULUS[2]);
     assert(result[3] == 0);
+    assert(result[4] == 0);
 }
 
 // MOD_BITS == 254: MOD = 2^253 is smaller than the Grumpkin modulus, so values are validated against MOD.
@@ -476,11 +478,12 @@ fn test_to_field_three_digits_overflow() {
 
 #[test(should_fail_with = "call to assert_max_bit_size")]
 fn test_to_field_too_many_digits() {
-    let bn: U384 = U384::from_limbs([
+    let bn: U512 = U512::from_limbs([
         0xea1742447ee9d92f9f18e1c80a481e,
         0x3d89ad3d3ae85f3f482a08435c93ec,
         0x1e9f,
         0x1,
+        0x0,
     ]);
     let _: Field = to_field(bn);
 }
@@ -495,7 +498,7 @@ fn test_from_to_field_1() {
 
 #[test]
 fn test_from_to_field_fuzz(a: Field) {
-    let b: U384 = U384::from(a);
+    let b: U512 = U512::from(a);
     let c: Field = to_field(b);
     assert(c == a);
 }
@@ -514,14 +517,15 @@ fn test_to_from_field_1() {
 
 #[test]
 fn test_to_from_field_2() {
-    let a: U384 = U384::from_limbs([
+    let a: U512 = U512::from_limbs([
         0xd7562bf2b1fe13d458685c96a46d28,
         0x2079950acd45bb43a9beeba69d5dc9,
         0x18ca,
         0x0,
+        0x0,
     ]);
     let b: Field = to_field(a);
-    let c: U384 = U384::from(b);
+    let c: U512 = U512::from(b);
     assert(a == c);
 }
 
@@ -1204,11 +1208,6 @@ fn test_mul_u1024() {
 }
 
 #[test]
-fn test_mul_u384() {
-    test_mul::<4, crate::types::U384::U384>();
-}
-
-#[test]
 fn test_mul_u4096() {
     test_mul::<35, crate::types::U4096::U4096>();
 }
@@ -1216,11 +1215,6 @@ fn test_mul_u4096() {
 #[test]
 fn test_mul_u512() {
     test_mul::<5, crate::types::U512::U512>();
-}
-
-#[test]
-fn test_mul_u768() {
-    test_mul::<7, crate::types::U768::U768>();
 }
 
 // ------------------------------ EXPRESSIONS TESTS ------------------------------

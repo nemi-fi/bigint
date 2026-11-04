@@ -76,8 +76,6 @@ pub use bigint::derive_bigint;
 pub use types::U1024::U1024;
 pub use types::U2048::U2048;
 pub use types::U256::U256;
-pub use types::U384::U384;
 pub use types::U4096::U4096;
 pub use types::U512::U512;
-pub use types::U768::U768;
 pub use types::U8192::U8192;
