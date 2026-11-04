@@ -215,9 +215,18 @@ pub fn assert_is_not_equal<let N: u32, let BITS: u32>(lhs: &[u128; N], rhs: &[u1
 
 /// Compute equality flag
 ///
-/// As every range-checked `BigInt` value has a unique limb representation, this is limb-wise
-/// equality.
+/// Every range-checked `BigInt` value has a unique limb representation, so after range-checking
+/// both inputs this is limb-wise equality.
+///
+/// ## Soundness
+/// The inputs must be range-checked here: values which bypass the `BigInt` constructors (e.g.
+/// circuit inputs, values returned from unconstrained functions, or `from_limbs_unsafe`) may
+/// otherwise encode the same integer with different limbs, e.g. `[2^120, 0, 0]` and `[0, 1, 0]`,
+/// and compare as unequal. Range checks are deduplicated per value, so this adds no constraints
+/// for inputs which are already range-checked, e.g. the outputs of other operations.
 pub fn eq<let N: u32, let BITS: u32>(lhs: &[u128; N], rhs: &[u128; N]) -> bool {
+    validate_in_range::<N, BITS>(lhs);
+    validate_in_range::<N, BITS>(rhs);
     *lhs == *rhs
 }
 
@@ -510,6 +519,11 @@ fn compute_add_result<let N: u32, let BITS: u32>(
 /// Performs a strict integer comparison over the limb representation,
 /// **not** modular ordering.
 pub fn cmp<let N: u32, let BITS: u32>(lhs: &[u128; N], rhs: &[u128; N]) -> Ordering {
+    // `Equal` is decided by limb-wise equality, which requires the inputs to be range-checked.
+    // See `eq` for details.
+    validate_in_range::<N, BITS>(lhs);
+    validate_in_range::<N, BITS>(rhs);
+
     // Safety: underflow and borrow_flags are constrained by `assert_sub_no_overflow`:
     // - we swap (a, b) based on underflow, then compute a - b
     // - if underflow is wrong, a < b and the subtraction overflows, failing range checks
