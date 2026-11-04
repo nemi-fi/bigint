@@ -174,107 +174,39 @@ pub(crate) unconstrained fn compute_gte_flags<let N: u32>(
     (underflow, borrow_flags)
 }
 
-// ------------------------------ BARRETT REDUCTION ------------------------------
+// ------------------------------ MODULAR REDUCTION ------------------------------
 
-/// `BARRETT_REDUCTION_OVERFLOW_BITS` defines how large an input to barrett reduction can be
+/// Reduce a double-width value modulo `2^(MOD_BITS - 1)`, returning (Q, R) (unconstrained)
 ///
-/// maximum value = modulus^2 << BARRETT_REDUCTION_OVERFLOW_BITS
-/// see __barrett_reduction for more details
-global BARRETT_REDUCTION_OVERFLOW_BITS: u32 = 6;
-
-/// Optimized modular multiplication (unconstrained)
+/// For the `2N`-limb value `x` compute (`Q`, `R`) such that:
+///      x = R + Q * 2^(MOD_BITS - 1), 0 <= R < 2^(MOD_BITS - 1)
 ///
-/// The trick is to approximate 1/p with m/2**r, because division by 2**r is much cheaper
-/// In our case m = redc_param = floor(2^{MOD_BITS * 2 + BARRET_REDUCTION_OVERFLOW_BITS} / p)
-///             r = MOD_BITS * 2 + BARRET_REDUCTION_OVERFLOW_BITS
-///
-/// When we apply the barrett reduction, the maximum value of the output will be <= p * (1 + x/2^{2k})
-/// where p = modulus,
-///       x = reduction input
-///
-/// If x > p * p, we need s to be larger than modulus_bits()
-/// We hardcode s = BARRET_REDUCTION_OVERFLOW_BITS = 6, which means that the maximum value of x is approx. 64 * p * p
-/// This should be larger than most values put into `evaluate_quadratic_expression`
-///
-/// ## TODO
-/// Detect cases where x might be too large at comptime
+/// As the modulus is a power of two, `R` is the low `MOD_BITS - 1` bits of `x` and `Q` is the
+/// remaining high bits.
 ///
 /// ## Note
-/// very niche edge case error that we need to be aware of:
-///      N must be large enough to cover the modulus *plus* BARRETT_REDUCTION_OVERFLOW_BITS
-///      i.e. a 359-bit prime needs (I think) 4 limbs to represent or we may overflow
-///      when calling __barrett_reduction
-///
-/// ## Note on final reduction
-///
-/// Assumptions:
-///  - k = ceil(log2 p), so p <= 2^k
-///  - s = 6, m = redc_param = floor(2^{2*k + s}/p)
-///  - x < 64 * p^2 (x < 2^{2 * k + s})
-///
-/// Let m' = 2^{2*k + s} / p, and write m = m' - \epsilon, \epsilon \in [0, 1)
-//
-/// quo = floor(x * m / 2^{2 * k + s}) = floor(x * m' / 2^{2 * k + s} - x * \epsilon / 2^{2 * k + s}) =
-/// floor(x / p - x * \epsilon / 2^{2 * k + s})
-///
-/// Bounds:
-///   quo <= floor(x / p)
-///
-///   floor(a - b) >= floor(a) - ceil(b) (known identity) =>
-///   quo >= floor(x / p) - ceil(x * \epsilon / 2^{2 * k + s})
-///       >= floor(x / p) - ceil(x / 2^{2 * k + s}) (epsilon < 1)
-///
-/// x / 2^{2 * k + s} < C * p^2 / 2^{2 * k + s} <= C * 2^{2 * k} / 2^{2 * k + s} = C / 2^s
-///
-/// When the assumption holds (C = 64), ceil(x / 2^{2 * k + s}) = 1, for x > 0
-/// Therefore quo = {floor(x/p), floor(x/p) - 1}
-///
-/// In first case: rem = x - quo * p = x - floor(x/p) * p < p
-/// In second case: rem = x - (floor(x/p) - 1) * p = (x - floor(x/p) * p) + p -> need 1 subtraction
-///
-/// ### Note
-/// In the worst case, we will have the input > 64 * p^2
-/// (for example (a1 + b1) * (c1 + d1) + ... 64 times)
-/// This is highly unlikely though, but there should be more reductions in that case.
-pub(crate) unconstrained fn __barrett_reduction<let N: u32>(
+/// `Q` is truncated to `N` limbs. Callers must ensure that `x < 2^(120 * N + MOD_BITS - 1)`,
+/// which holds for the product of any two `N`-limb values whose limbs are at most 120 bits.
+pub(crate) unconstrained fn __reduce<let N: u32, let MOD_BITS: u32>(
     x: &[u128; 2 * N],
-    redc_param: &[u128; N],
-    k: u32,
-    modulus: &[u128; N],
 ) -> ([u128; N], [u128; N]) {
-    // TODO: switch to __helper_mul, once the compiler is smart enough to handle this
-    let mut mulout_field: [Field; 3 * N] = [0; 3 * N];
-    for i in 0..(2 * N) {
-        for j in 0..N {
-            mulout_field[i + j] += (x[i] as Field) * (redc_param[j] as Field);
-        }
-    }
-    let mulout: [u128; 3 * N] = __normalize_limbs(mulout_field);
+    let modulus_bits: u32 = MOD_BITS - 1;
+    let top_limb: u32 = modulus_bits / 120;
+    let top_limb_mask: u128 = (1 << ((modulus_bits % 120) as u128)) - 1;
 
-    let quotient: [u128; 3 * N] = __shr(&mulout, (k + k + BARRETT_REDUCTION_OVERFLOW_BITS));
-
-    // Remove a bunch of zeros from the end
-    let mut smaller_quotient: [u128; N] = [0; N];
-    for i in 0..N {
-        smaller_quotient[i] = quotient[i] as u128;
-    }
-
-    // long_quotient_mul_modulus can never exceed input value `x` so can fit into size-2 array
-    let long_quotient_mul_modulus: [u128; 2 * N] = __helper_mul(&smaller_quotient, modulus);
-    let long_remainder: [u128; 2 * N] = __helper_sub(x, &long_quotient_mul_modulus);
-
-    // Remove a bunch of zeros from the end
     let mut remainder: [u128; N] = [0; N];
+    for i in 0..top_limb {
+        remainder[i] = x[i];
+    }
+    remainder[top_limb] = x[top_limb] & top_limb_mask;
+
+    let long_quotient: [u128; 2 * N] = __shr(x, modulus_bits);
+    let mut quotient: [u128; N] = [0; N];
     for i in 0..N {
-        remainder[i] = long_remainder[i];
+        quotient[i] = long_quotient[i];
     }
 
-    if (__gte(&remainder, modulus)) {
-        remainder = __helper_sub(&remainder, modulus);
-        smaller_quotient = __increment(&smaller_quotient);
-    }
-
-    (smaller_quotient, remainder)
+    (quotient, remainder)
 }
 
 // ------------------------------ ARITHMETIC HELPER FUNCTIONS ------------------------------

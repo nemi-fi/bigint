@@ -8,7 +8,7 @@ use crate::fns::{
     unconstrained_ops::{__add, __mul, __neg, __sqr, __sub, __udiv_mod},
 };
 
-use crate::params::BigIntParams;
+use crate::fns::modulus::get_modulus;
 
 use std::cmp::Ordering;
 
@@ -17,10 +17,7 @@ use std::cmp::Ordering;
 /// Descent the `BigInt` value back into the `Field` and
 ///    - check that it's a proper `BigInt` value
 ///    - validate the limbs sum up to a `Field` value
-pub(crate) fn limbs_to_field<let N: u32, let MOD_BITS: u32>(
-    _params: &BigIntParams<N, MOD_BITS>,
-    limbs: &[u128; N],
-) -> Field {
+pub(crate) fn limbs_to_field<let N: u32, let MOD_BITS: u32>(limbs: &[u128; N]) -> Field {
     validate_in_range::<N, MOD_BITS>(limbs);
     // `validate_in_range` bounds `limbs` by `2^MOD_BITS`, so when `MOD_BITS < 254` the value is
     // already known to be smaller than the Grumpkin modulus: the latter's top limb is `0x3064`,
@@ -54,56 +51,29 @@ pub(crate) fn limbs_to_field<let N: u32, let MOD_BITS: u32>(
 /// Construct a `BigInt` value from a native `Field`
 ///
 /// Decomposes the `Field` value into 120-bit limbs
-/// then we have three cases:
-///     - MOD_BITS < 254 (grumpkin_mod_bits): it is enough to call for `validate_canonical`, which is basically `val < MOD`
+/// then we have two cases:
+///     - MOD_BITS <= 254: `MOD = 2^(MOD_BITS - 1) <= 2^253` is smaller than the Grumpkin modulus,
+///       so it is enough to call `validate_canonical`, which is basically `val < MOD`
 ///     - MOD_BITS > 254: we need to verify that the obtained `BigInt` `val < GRUMPKIN_MODULUS`
-///     - MOD_BITS = 254: verify that `val < min(MOD, GRUMPKIN_MODULUS)`
 /// Next we verify that all the limbs are properly ranged
 /// and that the accumulated limbs are equal to the input `Field` value
-pub fn from_field<let N: u32, let MOD_BITS: u32>(
-    _params: &BigIntParams<N, MOD_BITS>,
-    val: Field,
-) -> [u128; N] {
+pub fn from_field<let N: u32, let MOD_BITS: u32>(val: Field) -> [u128; N] {
     // Safety: we check that the resulting limbs represent the intended field element
     // we check the bit length, the limbs being max 120 bits, and the value in total is less than the field modulus
     let result: [u128; N] = unsafe { __from_field::<N>(val) };
 
     if !std::runtime::is_unconstrained() {
         // validate the limbs are in range and the value in total is less than 2^254
-        if MOD_BITS < 254 {
-            // this means that the field modulus is smaller than grumpkin modulus so we have to check if the element fields in the field size
-            validate_canonical(_params, &result);
+        if MOD_BITS <= 254 {
+            validate_canonical::<N, MOD_BITS>(&result);
         } else {
+            // `MOD` is larger than the Grumpkin modulus, so check against the Grumpkin modulus instead.
+            // N is always at least 3 here.
             let mut grumpkin_modulus: [u128; N] = [0; N];
             grumpkin_modulus[0] = GRUMPKIN_MODULUS[0];
             grumpkin_modulus[1] = GRUMPKIN_MODULUS[1];
             grumpkin_modulus[2] = GRUMPKIN_MODULUS[2];
-
-            if MOD_BITS > 254 {
-                // this means that the field modulus is larger than grumpkin modulus so we have to check if the element fields in the field size are less than the grumpkin modulus.
-                // also for correct params N is always larger than 3 here
-                validate_gt::<N, MOD_BITS>(&grumpkin_modulus, &result);
-            } else {
-                // this is the tricky part, when MOD_BITS = 254, we have to compare the limbs of the modulus to the grumpkin modulus limbs
-                // any `BigInt` with 254 bits will have 3 limbs
-
-                // if MOD is less than grumpkin modulus, this will be true
-                let mut mod_lt_grumpkin: bool = false;
-                let mut decided: bool = false;
-                for i in 0..3 {
-                    if !decided & (_params.modulus[2 - i] != grumpkin_modulus[2 - i]) {
-                        mod_lt_grumpkin = _params.modulus[2 - i] < grumpkin_modulus[2 - i];
-                        decided = true;
-                    }
-                }
-
-                let min_modulus: [u128; N] = if mod_lt_grumpkin {
-                    _params.modulus
-                } else {
-                    grumpkin_modulus
-                };
-                validate_gt::<N, MOD_BITS>(&min_modulus, &result);
-            }
+            validate_gt::<N, MOD_BITS>(&grumpkin_modulus, &result);
         }
         validate_in_range::<N, MOD_BITS>(&result);
 
@@ -146,7 +116,6 @@ pub fn from_field<let N: u32, let MOD_BITS: u32>(
 /// If `MOD = 2^{120 * (N - 1)}`
 /// It will use only `MOD_BITS - 1` bits of entropy
 pub fn derive_from_seed<let N: u32, let MOD_BITS: u32, let SeedBytes: u32>(
-    params: &BigIntParams<N, MOD_BITS>,
     seed: [u8; SeedBytes],
 ) -> [u128; N] {
     // Pack seed bytes into Fields.
@@ -267,8 +236,8 @@ pub fn derive_from_seed<let N: u32, let MOD_BITS: u32, let SeedBytes: u32>(
     let mut result: [u128; N] = bigfield_chunks[0];
 
     for i in 1..num_bigfield_chunks {
-        result = mul(*params, result, bigfield_rhs_limbs);
-        result = add(params, &result, &bigfield_chunks[i]);
+        result = mul::<N, MOD_BITS>(result, bigfield_rhs_limbs);
+        result = add::<N, MOD_BITS>(&result, &bigfield_chunks[i]);
     }
 
     result
@@ -310,14 +279,11 @@ pub fn derive_from_seed<let N: u32, let MOD_BITS: u32, let SeedBytes: u32>(
 /// roughly 3/p.
 ///
 /// In case `MOD` < `p` this function becomes *complete*
-pub fn assert_is_not_equal<let N: u32, let MOD_BITS: u32>(
-    params: &BigIntParams<N, MOD_BITS>,
-    lhs: &[u128; N],
-    rhs: &[u128; N],
-) {
+pub fn assert_is_not_equal<let N: u32, let MOD_BITS: u32>(lhs: &[u128; N], rhs: &[u128; N]) {
     let mut l: Field = 0;
     let mut r: Field = 0;
     let mut modulus_mod_p: Field = 0;
+    let modulus: [u128; N] = get_modulus::<N, MOD_BITS>();
     for i in 0..N {
         l *= TWO_POW_120 as Field;
         r *= TWO_POW_120 as Field;
@@ -325,7 +291,7 @@ pub fn assert_is_not_equal<let N: u32, let MOD_BITS: u32>(
 
         l += lhs[N - i - 1] as Field;
         r += rhs[N - i - 1] as Field;
-        modulus_mod_p += params.modulus[N - i - 1] as Field;
+        modulus_mod_p += modulus[N - i - 1] as Field;
     }
 
     let diff: Field = l - r;
@@ -347,13 +313,9 @@ pub fn assert_is_not_equal<let N: u32, let MOD_BITS: u32>(
 ///
 /// ## TODO
 /// can do this more efficiently via witngen in unconstrained functions?
-pub fn eq<let N: u32, let MOD_BITS: u32>(
-    params: &BigIntParams<N, MOD_BITS>,
-    lhs: &[u128; N],
-    rhs: &[u128; N],
-) -> bool {
-    let diff: [u128; N] = sub::<N, MOD_BITS>(params, lhs, rhs);
-    is_zero::<N, MOD_BITS>(params, &diff)
+pub fn eq<let N: u32, let MOD_BITS: u32>(lhs: &[u128; N], rhs: &[u128; N]) -> bool {
+    let diff: [u128; N] = sub::<N, MOD_BITS>(lhs, rhs);
+    is_zero::<N, MOD_BITS>(&diff)
 }
 
 /// Validate that `val` is not equal to zero when interpreted as an integer.
@@ -406,28 +368,22 @@ pub fn is_zero_integer<let N: u32>(val: &[u128; N]) -> bool {
 /// Validate that a `BigInt` value is not zero modulo `MOD`.
 ///
 /// Convenience wrapper around `assert_is_not_equal`.
-pub fn assert_is_not_zero<let N: u32, let MOD_BITS: u32>(
-    params: &BigIntParams<N, MOD_BITS>,
-    val: &[u128; N],
-) {
+pub fn assert_is_not_zero<let N: u32, let MOD_BITS: u32>(val: &[u128; N]) {
     let zero: [u128; N] = [0; N];
-    assert_is_not_equal::<N, MOD_BITS>(params, val, &zero);
+    assert_is_not_equal::<N, MOD_BITS>(val, &zero);
 }
 
 /// Check whether a `BigInt` value is zero modulo `MOD`.
 ///
-/// This treats both the all-zero limb vector and `params.modulus` as
+/// This treats both the all-zero limb vector and `MOD` as
 /// representing zero. It assumes that all valid `BigInt` values are
 /// range-constrained so that no other representatives of `0 (mod MOD)`
 /// can appear.
 ///
 /// ## Note
 /// This is cheaper than calling `eq(val, [0; N])`
-pub fn is_zero<let N: u32, let MOD_BITS: u32>(
-    params: &BigIntParams<N, MOD_BITS>,
-    val: &[u128; N],
-) -> bool {
-    is_zero_integer(val) | (*val == params.modulus)
+pub fn is_zero<let N: u32, let MOD_BITS: u32>(val: &[u128; N]) -> bool {
+    is_zero_integer(val) | (*val == get_modulus::<N, MOD_BITS>())
 }
 
 /// Validate a `BigInt` instance is correctly range constrained to contain no more than `MOD_BITS` bits
@@ -457,8 +413,8 @@ pub fn validate_in_range<let N: u32, let MOD_BITS: u32>(limbs: &[u128; N]) {
 
 /// Validate quotient produced from `evaluate_quadratic_expression` is well-formed
 ///
-/// Because the inputs into `evaluate_quadratic_expression` may cause the quotient to extend beyond `Params::modulus_bits`.
-///           We allow the quotient to extend `6` bits beyond `Params::modulus_bits()`
+/// Because the inputs into `evaluate_quadratic_expression` may cause the quotient to extend beyond `MOD_BITS`.
+///           We allow the quotient to extend `6` bits beyond `MOD_BITS`
 ///           Why is this?
 ///           several factors:    1. quotient * modulus , limbs cannot overflow `Field` boundary (254 bits)
 ///                               2. in `evaluate_quadratic_expression`, we require that for `expression - quotient * modulus`,
@@ -665,11 +621,8 @@ fn compute_add_result<let N: u32, let MOD_BITS: u32>(
 }
 
 /// Validate that `val` < `MOD`
-pub fn validate_canonical<let N: u32, let MOD_BITS: u32>(
-    params: &BigIntParams<N, MOD_BITS>,
-    val: &[u128; N],
-) {
-    validate_gt::<N, MOD_BITS>(&params.modulus, val);
+pub fn validate_canonical<let N: u32, let MOD_BITS: u32>(val: &[u128; N]) {
+    validate_gt::<N, MOD_BITS>(&get_modulus::<N, MOD_BITS>(), val);
 }
 
 /// Compare two `BigInt` values, returning their `Ordering`.
@@ -714,17 +667,14 @@ pub fn cmp<let N: u32, let MOD_BITS: u32>(lhs: &[u128; N], rhs: &[u128; N]) -> O
 /// Computes `result = 0 - val (mod MOD)` using constrained subtraction function
 ///
 /// All constraints and soundness details are handled inside `sub`.
-pub fn neg<let N: u32, let MOD_BITS: u32>(
-    params: &BigIntParams<N, MOD_BITS>,
-    val: &[u128; N],
-) -> [u128; N] {
+pub fn neg<let N: u32, let MOD_BITS: u32>(val: &[u128; N]) -> [u128; N] {
     if std::runtime::is_unconstrained() {
         // Safety: unconstrained runtime requires no constraints
         unsafe {
-            __neg(&params.modulus, val)
+            __neg(&get_modulus::<N, MOD_BITS>(), val)
         }
     } else {
-        sub(params, &[0; N], val)
+        sub::<N, MOD_BITS>(&[0; N], val)
     }
 }
 
@@ -821,18 +771,14 @@ pub fn neg<let N: u32, let MOD_BITS: u32>(
 /// as limb arrays and may admit satisfying witnesses, but then the operation
 /// no longer corresponds to a unique, well-defined addition in the field
 /// `Z / MOD Z`. Such uses are outside the intended semantics of this function.
-pub fn add<let N: u32, let MOD_BITS: u32>(
-    params: &BigIntParams<N, MOD_BITS>,
-    lhs: &[u128; N],
-    rhs: &[u128; N],
-) -> [u128; N] {
+pub fn add<let N: u32, let MOD_BITS: u32>(lhs: &[u128; N], rhs: &[u128; N]) -> [u128; N] {
     if std::runtime::is_unconstrained() {
         // Safety: unconstrained runtime requires no constraints
         unsafe {
-            __add(&params.modulus, lhs, rhs)
+            __add(&get_modulus::<N, MOD_BITS>(), lhs, rhs)
         }
     } else {
-        let modulus = params.modulus;
+        let modulus = get_modulus::<N, MOD_BITS>();
         // Safety: flags are constrained by `compute_add_result`:
         // - incorrect flags cause computed limbs to fail 128-bit range checks
         // - wrong overflow causes result to be off by modulus, failing `validate_in_range`
@@ -939,18 +885,14 @@ pub fn add<let N: u32, let MOD_BITS: u32>(
 /// as limb arrays and may admit satisfying witnesses, but then the operation
 /// no longer corresponds to a unique, well-defined subtraction in the field
 /// `Z / MOD Z`. Such uses are outside the intended semantics of this function.
-pub fn sub<let N: u32, let MOD_BITS: u32>(
-    params: &BigIntParams<N, MOD_BITS>,
-    lhs: &[u128; N],
-    rhs: &[u128; N],
-) -> [u128; N] {
+pub fn sub<let N: u32, let MOD_BITS: u32>(lhs: &[u128; N], rhs: &[u128; N]) -> [u128; N] {
     if std::runtime::is_unconstrained() {
         // Safety: unconstrained runtime requires no constraints
         unsafe {
-            __sub(&params.modulus, lhs, rhs)
+            __sub(&get_modulus::<N, MOD_BITS>(), lhs, rhs)
         }
     } else {
-        let modulus = params.modulus;
+        let modulus = get_modulus::<N, MOD_BITS>();
         // Safety: flags are constrained by `compute_sub_result`:
         // - incorrect flags cause computed limbs to fail 128-bit range checks
         // - wrong underflow causes result to be off by modulus, failing `validate_in_range`
@@ -983,13 +925,9 @@ pub fn sub<let N: u32, let MOD_BITS: u32>(
 /// ## Note
 /// When possible, prefer expressing your computation directly as a quadratic
 ///   relation and calling `evaluate_quadratic_expression` instead of using `mul`
-pub fn mul<let N: u32, let MOD_BITS: u32>(
-    params: BigIntParams<N, MOD_BITS>,
-    lhs: [u128; N],
-    rhs: [u128; N],
-) -> [u128; N] {
+pub fn mul<let N: u32, let MOD_BITS: u32>(lhs: [u128; N], rhs: [u128; N]) -> [u128; N] {
     // Safety: we constrain the multiplication result immediately after
-    let result: [u128; N] = unsafe { __mul::<N, MOD_BITS>(&params, &lhs, &rhs) };
+    let result: [u128; N] = unsafe { __mul::<N, MOD_BITS>(&lhs, &rhs) };
     if !std::runtime::is_unconstrained() {
         // lhs * rhs - result = 0
         let lhs_terms: [[[u128; N]; 1]; 1] = [[lhs]];
@@ -999,7 +937,6 @@ pub fn mul<let N: u32, let MOD_BITS: u32>(
         let linear_terms: [[u128; N]; 1] = [result];
         let linear_flags: [bool; 1] = [true];
         evaluate_quadratic_expression::<N, MOD_BITS, 1, 1, 1, 1>(
-            &params,
             &lhs_terms,
             &lhs_flags,
             &rhs_terms,
@@ -1025,12 +962,9 @@ pub fn mul<let N: u32, let MOD_BITS: u32>(
 /// ## Note
 /// When possible, prefer expressing your computation directly as a quadratic
 ///   relation and calling `evaluate_quadratic_expression` instead of using `sqr`
-pub fn sqr<let N: u32, let MOD_BITS: u32>(
-    params: BigIntParams<N, MOD_BITS>,
-    val: [u128; N],
-) -> [u128; N] {
+pub fn sqr<let N: u32, let MOD_BITS: u32>(val: [u128; N]) -> [u128; N] {
     // Safety: we constrain the multiplication result immediately after
-    let result: [u128; N] = unsafe { __sqr::<_, MOD_BITS>(&params, &val) };
+    let result: [u128; N] = unsafe { __sqr::<_, MOD_BITS>(&val) };
     if !std::runtime::is_unconstrained() {
         // val * val - result = 0
         let lhs_terms: [[[u128; N]; 1]; 1] = [[val]];
@@ -1040,7 +974,6 @@ pub fn sqr<let N: u32, let MOD_BITS: u32>(
         let linear_terms: [[u128; N]; 1] = [result];
         let linear_flags: [bool; 1] = [true];
         evaluate_quadratic_expression::<N, MOD_BITS, 1, 1, 1, 1>(
-            &params,
             &lhs_terms,
             &lhs_flags,
             &rhs_terms,
@@ -1077,7 +1010,6 @@ pub fn sqr<let N: u32, let MOD_BITS: u32>(
 /// Enforcing `divisor != 0` is not necessary. `remainder < divisor`
 /// Already enforces this.
 pub fn udiv_mod<let N: u32, let MOD_BITS: u32>(
-    params: &BigIntParams<N, MOD_BITS>,
     numerator: &[u128; N],
     divisor: &[u128; N],
 ) -> ([u128; N], [u128; N]) {
@@ -1089,9 +1021,9 @@ pub fn udiv_mod<let N: u32, let MOD_BITS: u32>(
         // remainder < divisor
         validate_gt::<N, MOD_BITS>(divisor, &remainder);
         // divisor is in canonical representation
-        validate_canonical(params, divisor);
+        validate_canonical::<N, MOD_BITS>(divisor);
         // numerator is in canonical representation
-        validate_canonical(params, numerator);
+        validate_canonical::<N, MOD_BITS>(numerator);
     }
     (quotient, remainder)
 }
@@ -1123,12 +1055,8 @@ pub fn udiv_mod_unsafe<let N: u32, let MOD_BITS: u32>(
 ///
 /// Returns `floor(numerator / divisor)`.
 /// All constraints and soundness details are handled inside `udiv_mod`.
-pub fn div<let N: u32, let MOD_BITS: u32>(
-    params: &BigIntParams<N, MOD_BITS>,
-    numerator: &[u128; N],
-    divisor: &[u128; N],
-) -> [u128; N] {
-    udiv_mod::<N, MOD_BITS>(params, numerator, divisor).0
+pub fn div<let N: u32, let MOD_BITS: u32>(numerator: &[u128; N], divisor: &[u128; N]) -> [u128; N] {
+    udiv_mod::<N, MOD_BITS>(numerator, divisor).0
 }
 
 /// Unsafe version of `div`.
@@ -1150,11 +1078,10 @@ pub fn div_unsafe<let N: u32, let MOD_BITS: u32>(
 /// Returns `numerator % divisor`.
 /// All constraints and soundness details are handled inside `udiv_mod`.
 pub fn umod<let N: u32, let MOD_BITS: u32>(
-    params: &BigIntParams<N, MOD_BITS>,
     numerator: &[u128; N],
     divisor: &[u128; N],
 ) -> [u128; N] {
-    udiv_mod::<N, MOD_BITS>(params, numerator, divisor).1
+    udiv_mod::<N, MOD_BITS>(numerator, divisor).1
 }
 
 /// Unsafe version of `umod`.

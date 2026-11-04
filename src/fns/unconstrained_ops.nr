@@ -3,13 +3,11 @@
 use crate::fns::constrained_ops::derive_from_seed;
 
 use crate::fns::unconstrained_helpers::{
-    __barrett_reduction, __get_bit, __get_msb, __helper_add, __helper_mul, __helper_sub,
-    __increment, __one, __shl, __shr1,
+    __get_bit, __get_msb, __helper_add, __helper_mul, __helper_sub, __increment, __one, __reduce,
+    __shl, __shr1,
 };
 
 use crate::constants::TWO_POW_120;
-
-use crate::params::BigIntParams;
 
 // ------------------------------ DERIVATION FUNCTIONS ------------------------------
 
@@ -19,10 +17,9 @@ use crate::params::BigIntParams;
 ///
 /// See more information in `constrained_ops.nr`: `derive_from_seed`
 pub unconstrained fn __derive_from_seed<let N: u32, let MOD_BITS: u32, let SeedBytes: u32>(
-    params: &BigIntParams<N, MOD_BITS>,
     seed: [u8; SeedBytes],
 ) -> [u128; N] {
-    derive_from_seed::<N, MOD_BITS, SeedBytes>(params, seed)
+    derive_from_seed::<N, MOD_BITS, SeedBytes>(seed)
 }
 
 // ------------------------------ COMPARISON FUNCTIONS ------------------------------
@@ -109,37 +106,30 @@ pub unconstrained fn __sub<let N: u32>(
     __add(modulus, lhs, &__neg(modulus, rhs))
 }
 
-/// Multiply `x` and `y` and reduce via Barrett, returning (Q, R) (unconstrained).
+/// Multiply `x` and `y` and reduce, returning (Q, R) (unconstrained).
 ///
 /// For `BigInt` values `x` and `y` compute (`Q`, `R`) such that:
 ///      x * y = R + Q * m, 0 <= R < m
-/// See `__barrett_reduction` for details.
+/// See `__reduce` for details.
 pub(crate) unconstrained fn __mul_with_quotient<let N: u32, let MOD_BITS: u32>(
-    params: &BigIntParams<N, MOD_BITS>,
     lhs: &[u128; N],
     rhs: &[u128; N],
 ) -> ([u128; N], [u128; N]) {
     let to_reduce: [u128; N * 2] = __helper_mul(lhs, rhs);
-    let (q, r): ([u128; N], [u128; N]) =
-        __barrett_reduction(&to_reduce, &params.redc_param, MOD_BITS, &params.modulus);
-    (q, r)
+    __reduce::<N, MOD_BITS>(&to_reduce)
 }
 
 /// Multiplies two `BigInt` values with modular reduction (unconstrained).
 pub unconstrained fn __mul<let N: u32, let MOD_BITS: u32>(
-    params: &BigIntParams<N, MOD_BITS>,
     lhs: &[u128; N],
     rhs: &[u128; N],
 ) -> [u128; N] {
-    __mul_with_quotient::<N, MOD_BITS>(params, lhs, rhs).1
+    __mul_with_quotient::<N, MOD_BITS>(lhs, rhs).1
 }
 
 /// Squares a `BigInt` value with modular reduction (unconstrained).
-pub unconstrained fn __sqr<let N: u32, let MOD_BITS: u32>(
-    params: &BigIntParams<N, MOD_BITS>,
-    val: &[u128; N],
-) -> [u128; N] {
-    __mul_with_quotient::<N, MOD_BITS>(params, val, val).1
+pub unconstrained fn __sqr<let N: u32, let MOD_BITS: u32>(val: &[u128; N]) -> [u128; N] {
+    __mul_with_quotient::<N, MOD_BITS>(val, val).1
 }
 
 /// Modular exponentiation via square-and-multiply. LSB-first (unconstrained).
@@ -150,7 +140,6 @@ pub unconstrained fn __sqr<let N: u32, let MOD_BITS: u32>(
 /// For the loop, we are using `MOD_BITS` instead of `__get_msb`
 /// because it is much much cheaper
 pub unconstrained fn __pow<let N: u32, let MOD_BITS: u32>(
-    params: &BigIntParams<N, MOD_BITS>,
     val: &[u128; N],
     exponent: &[u128; N],
 ) -> [u128; N] {
@@ -160,9 +149,9 @@ pub unconstrained fn __pow<let N: u32, let MOD_BITS: u32>(
 
     for i in 0..num_bits {
         if __get_bit(exponent, i) {
-            accumulator = __mul::<N, MOD_BITS>(params, &accumulator, &x);
+            accumulator = __mul::<N, MOD_BITS>(&accumulator, &x);
         }
-        x = __sqr::<N, MOD_BITS>(params, &x);
+        x = __sqr::<N, MOD_BITS>(&x);
     }
     accumulator
 }

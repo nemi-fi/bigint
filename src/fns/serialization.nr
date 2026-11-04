@@ -1,5 +1,4 @@
 use crate::fns::constrained_ops::validate_canonical;
-use crate::params::BigIntParams;
 use crate::utils::map::invert_array;
 
 // Conversions between big endian and little endian byte arrays and BigInt instances
@@ -15,12 +14,9 @@ use crate::utils::map::invert_array;
 /// Consistency between `N` and `MOD_BITS` is expected:
 ///     - `N * 15 >= num_bytes`
 ///     - `num_bytes > (N - 1) * 15`
-pub fn from_be_bytes<let N: u32, let MOD_BITS: u32>(
-    params: &BigIntParams<N, MOD_BITS>,
-    x: &[u8; (MOD_BITS + 7) / 8],
-) -> [u128; N] {
+pub fn from_be_bytes<let N: u32, let MOD_BITS: u32>(x: &[u8; (MOD_BITS + 7) / 8]) -> [u128; N] {
     let result: [u128; N] = from_be_bytes_unsafe::<N, MOD_BITS>(x);
-    validate_canonical(params, &result);
+    validate_canonical::<N, MOD_BITS>(&result);
     result
 }
 
@@ -86,11 +82,8 @@ pub fn from_be_bytes_unsafe<let N: u32, let MOD_BITS: u32>(
 /// before serializing.
 ///
 /// The output contains `(MOD_BITS + 7) / 8` bytes.
-pub fn to_be_bytes<let N: u32, let MOD_BITS: u32>(
-    params: &BigIntParams<N, MOD_BITS>,
-    val: &[u128; N],
-) -> [u8; (MOD_BITS + 7) / 8] {
-    validate_canonical(params, val);
+pub fn to_be_bytes<let N: u32, let MOD_BITS: u32>(val: &[u128; N]) -> [u8; (MOD_BITS + 7) / 8] {
+    validate_canonical::<N, MOD_BITS>(val);
     to_be_bytes_unsafe::<N, MOD_BITS>(val)
 }
 
@@ -139,12 +132,9 @@ pub fn to_be_bytes_unsafe<let N: u32, let MOD_BITS: u32>(
 /// Validates that the result is in canonical form (i.e. in `[0, MOD)`) via `validate_canonical`.
 ///
 /// See `from_be_bytes` for details.
-pub fn from_le_bytes<let N: u32, let MOD_BITS: u32>(
-    params: &BigIntParams<N, MOD_BITS>,
-    x: &[u8; (MOD_BITS + 7) / 8],
-) -> [u128; N] {
+pub fn from_le_bytes<let N: u32, let MOD_BITS: u32>(x: &[u8; (MOD_BITS + 7) / 8]) -> [u128; N] {
     let be_x: [u8; (MOD_BITS + 7) / 8] = invert_array(x);
-    from_be_bytes(params, &be_x)
+    from_be_bytes(&be_x)
 }
 
 /// Construct a `BigInt` value from a little-endian byte array without canonical validation.
@@ -166,11 +156,8 @@ pub fn from_le_bytes_unsafe<let N: u32, let MOD_BITS: u32>(
 /// before serializing.
 ///
 /// See `to_be_bytes` for details.
-pub fn to_le_bytes<let N: u32, let MOD_BITS: u32>(
-    params: &BigIntParams<N, MOD_BITS>,
-    val: &[u128; N],
-) -> [u8; (MOD_BITS + 7) / 8] {
-    let result_be: [u8; (MOD_BITS + 7) / 8] = to_be_bytes(params, val);
+pub fn to_le_bytes<let N: u32, let MOD_BITS: u32>(val: &[u128; N]) -> [u8; (MOD_BITS + 7) / 8] {
+    let result_be: [u8; (MOD_BITS + 7) / 8] = to_be_bytes(val);
     invert_array(&result_be)
 }
 

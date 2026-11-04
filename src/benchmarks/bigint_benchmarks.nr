@@ -1,4 +1,4 @@
-comptime fn make_bench(m: Module, params: Quoted) -> Quoted {
+comptime fn make_bench(m: Module, typ_path: Quoted) -> Quoted {
     let module_name = m.name();
 
     // Constrained methods' benchmarks
@@ -24,7 +24,7 @@ comptime fn make_bench(m: Module, params: Quoted) -> Quoted {
         f"assert_is_not_zero_integer_{module_name}".quoted_contents();
 
     let validate_in_range_bench_name = f"validate_in_range_{module_name}".quoted_contents();
-    let validate_in_field_bench_name = f"validate_in_field_{module_name}".quoted_contents();
+    let validate_canonical_bench_name = f"validate_canonical_{module_name}".quoted_contents();
 
     let from_field_bench_name = f"from_field_{module_name}".quoted_contents();
     let to_field_bench_name = f"to_field_{module_name}".quoted_contents();
@@ -46,9 +46,9 @@ comptime fn make_bench(m: Module, params: Quoted) -> Quoted {
     let pow_bench_name = f"pow_{module_name}".quoted_contents();
 
     let BigInt = quote { crate::bigint::BigInt };
-    let typ = params.as_type();
+    let typ = typ_path.as_type();
 
-    let typ_token = params;
+    let typ_token = typ_path;
     let MOD_BITS = quote { <$typ_token as $BigInt>::MOD_BITS };
     let N = quote { <$typ_token as $BigInt>::N };
 
@@ -124,7 +124,7 @@ comptime fn make_bench(m: Module, params: Quoted) -> Quoted {
         }
 
         #[export]
-        fn $validate_in_field_bench_name(a: $typ) {
+        fn $validate_canonical_bench_name(a: $typ) {
             $BigInt::validate_canonical(&a)
         }
 

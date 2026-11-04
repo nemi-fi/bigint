@@ -56,37 +56,23 @@ The following types are provided (see [`src/types/`](./src/types/)):
 
 Values are stored as arrays of `N` little-endian 120-bit limbs held in `u128`s, i.e. `[a, b, c]` represents $a + b \cdot 2^{120} + c \cdot 2^{240}$. The headroom left in each `u128` allows intermediate sums and products to be computed without overflow.
 
-Each type `UX` is parameterised by a `BigIntParams` whose modulus is $2^X$. `MOD_BITS` is the bit length of that modulus (`X + 1`).
+Each type `UX` performs arithmetic modulo $2^X$. `MOD_BITS` is the bit length of that modulus (`X + 1`).
 
 ### Defining your own width
 
-A new width can be created by providing a `BigIntParams` and using the `derive_bigint` macro:
+A new width can be created with the `derive_bigint` macro, passing the number of limbs `N` and `MOD_BITS`:
 
 ```rust
-use bigint::{BigInt, BigIntParams, derive_bigint};
+use bigint::{BigInt, derive_bigint};
 
-// 2^320
-global U320_PARAMS: BigIntParams<3, 321> = BigIntParams {
-    modulus: [0x00, 0x00, 0x0100000000000000000000],
-    double_modulus: [
-        0x01000000000000000000000000000000,
-        0xffffffffffffffffffffffffffffff,
-        0x01fffffffffffffffffffff,
-    ],
-    redc_param: [0x00, 0x00, 0x010000000000000000000000],
-};
-
-#[derive_bigint(3, 321, quote { U320_PARAMS })]
+// An unsigned 320-bit integer
+#[derive_bigint(3, 321)]
 pub struct U320 {
     limbs: [u128; 3],
 }
 ```
 
-where:
-
-- `modulus` is $2^X$ encoded as 120-bit limbs.
-- `double_modulus` is computed as in `get_double_modulus` in [`src/params.nr`](./src/params.nr). This is _not_ strictly `2 * modulus`: each limb except the most significant borrows $2^{120}$ from the next, so that limb-wise subtractions `double_modulus[i] - x[i]` never underflow.
-- `redc_param` is `(1 << (2 * MOD_BITS + 6)) / modulus`, used for Barrett reduction in unconstrained code.
+`MOD_BITS` must satisfy `120 * (N - 1) < MOD_BITS < 120 * N`, which is checked at compile time.
 
 At least two limbs are required. Single-limb types are not supported.
 

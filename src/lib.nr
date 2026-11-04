@@ -5,9 +5,6 @@ mod constants;
 // Pre-defined `BigInt`s for people to use:
 pub mod types;
 
-// Structs enabling people to define their own bigint params
-pub mod params;
-
 // Free functions and other utils, called by the BigInt structs
 pub(crate) mod fns;
 pub(crate) mod utils;
@@ -19,6 +16,8 @@ mod tests;
 // Exported through the `internal` submodule to make it clear they are not
 // intended for direct use by end users
 pub mod internal {
+    pub use crate::fns::modulus::get_modulus;
+
     // Constrained operations
     pub use crate::fns::constrained_ops::add;
     pub use crate::fns::constrained_ops::assert_is_not_equal;
@@ -72,7 +71,6 @@ pub use bigint::{
     compute_quadratic_expression, conditional_select, evaluate_quadratic_expression, to_field,
 };
 pub use bigint::derive_bigint;
-pub use params::BigIntParams;
 
 // Re-export the pre-defined bigint types, for easier access:
 pub use types::U1024::U1024;

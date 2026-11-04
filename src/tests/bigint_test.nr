@@ -6,22 +6,22 @@ use crate::fns::constrained_ops::{from_field, validate_gt};
 use crate::fns::expressions::{assert_product_limbs_fit_in_246_bits, validate_udiv_mod_expression};
 use crate::fns::unconstrained_helpers::__helper_add;
 
-use crate::params::BigIntParams;
-
 use crate::types::U2048::U2048;
 use crate::types::U256::U256;
 use crate::types::U384::U384;
 
-// A 252-bit unsigned integer type (`MOD_BITS = 253 < 254`), used to exercise code paths
-// which are specific to types whose values always fit within the native field.
-global U252_PARAMS: BigIntParams<3, 253> = BigIntParams {
-    modulus: [0x00, 0x00, 0x1000],
-    double_modulus: [0x01000000000000000000000000000000, 0xffffffffffffffffffffffffffffff, 0x1fff],
-    redc_param: [0x00, 0x00, 0x100000],
-};
+// Test-only unsigned integer types whose values always fit within the native field
+// (`MOD_BITS <= 254`), used to exercise code paths specific to such types.
 
-#[derive_bigint(3, 253, quote { U252_PARAMS })]
+// A 252-bit unsigned integer (`MOD_BITS = 253`)
+#[derive_bigint(3, 253)]
 pub struct U252 {
+    limbs: [u128; 3],
+}
+
+// A 253-bit unsigned integer (`MOD_BITS = 254`)
+#[derive_bigint(3, 254)]
+pub struct U253 {
     limbs: [u128; 3],
 }
 
@@ -224,15 +224,12 @@ fn test_udiv_mod_unsafe_non_canonical_divisor() {
     let (_, _) = numerator.udiv_mod_unsafe(&non_canonical_divisor);
 }
 
+// from_field must reject values >= MOD, even when they are smaller than the Grumpkin modulus.
 #[test(should_fail_with = "call to assert_max_bit_size")]
 fn test_from_field_regression() {
-    // Smaller than Grumpkin modulus
-    let modulus: [u128; 3] = [GRUMPKIN_MODULUS[0] - 10, GRUMPKIN_MODULUS[1], GRUMPKIN_MODULUS[2]];
-    let params: BigIntParams<3, 254> = BigIntParams::new(modulus, [0 as u128; 3]);
-    let value: Field = ((modulus[0] + 5) as Field)
-        + (modulus[1] as Field) * (TWO_POW_120 as Field)
-        + (modulus[2] as Field) * TWO_POW_240;
-    let _: [u128; 3] = from_field(&params, value);
+    // 2^253 + 5
+    let value: Field = 0x2000 * TWO_POW_240 + 5;
+    let _: [u128; 3] = from_field::<3, 254>(value);
 }
 
 // ------------------------------ COMPLETENESS TESTS ------------------------------
@@ -395,69 +392,36 @@ fn test_from_field_mod_bits_lt_254() {
     let modulus: [u128; 3] = U252::modulus().get_limbs();
     // 2^252 - 1
     let max: Field = (modulus[2] as Field) * TWO_POW_240 - 1;
-    let result: [u128; 3] = from_field(&U252::params(), max);
+    let result: [u128; 3] = from_field::<3, 253>(max);
     assert(result == [TWO_POW_120 - 1, TWO_POW_120 - 1, modulus[2] - 1]);
 }
 
 // MOD_BITS > 254: validates via validate_gt(GRUMPKIN, result).
 #[test]
 fn test_from_field_mod_bits_gt_254() {
-    let result: [u128; 4] = from_field(&U384::params(), -1 as Field);
+    let result: [u128; 4] = from_field::<4, 385>(-1 as Field);
     assert(result[0] == GRUMPKIN_MODULUS[0] - 1);
     assert(result[1] == GRUMPKIN_MODULUS[1]);
     assert(result[2] == GRUMPKIN_MODULUS[2]);
     assert(result[3] == 0);
 }
 
-// MOD_BITS == 254, MOD == GRUMPKIN: all limbs equal, min = GRUMPKIN.
+// MOD_BITS == 254: MOD = 2^253 is smaller than the Grumpkin modulus, so values are validated against MOD.
 #[test]
-fn test_from_field_254_eq_grumpkin() {
-    let params: BigIntParams<3, 254> = BigIntParams::new(GRUMPKIN_MODULUS, [0 as u128; 3]);
-    let _neg_one: Field = -1;
-    let result: [u128; 3] = from_field(&params, _neg_one);
-    assert(result[0] == GRUMPKIN_MODULUS[0] - 1);
-    assert(result[1] == GRUMPKIN_MODULUS[1]);
-    assert(result[2] == GRUMPKIN_MODULUS[2]);
+fn test_from_field_mod_bits_eq_254() {
+    // 2^253 - 1
+    let max: Field = 0x2000 * TWO_POW_240 - 1;
+    let result: [u128; 3] = from_field::<3, 254>(max);
+    assert(result == [TWO_POW_120 - 1, TWO_POW_120 - 1, 0x1fff]);
+
+    let result: U253 = U253::from(max);
+    assert_eq(to_field(result), max);
 }
 
-// MOD_BITS == 254, MOD > GRUMPKIN: middle limb decides, min = GRUMPKIN.
-#[test]
-fn test_from_field_254_gt_grumpkin() {
-    let modulus: [u128; 3] = [GRUMPKIN_MODULUS[0], GRUMPKIN_MODULUS[1] + 1, GRUMPKIN_MODULUS[2]];
-    let params: BigIntParams<3, 254> = BigIntParams::new(modulus, [0 as u128; 3]);
-    let result: [u128; 3] = from_field(&params, -1 as Field);
-    assert(result[0] == GRUMPKIN_MODULUS[0] - 1);
-    assert(result[1] == GRUMPKIN_MODULUS[1]);
-    assert(result[2] == GRUMPKIN_MODULUS[2]);
-}
-
-// MOD_BITS == 254, MOD > GRUMPKIN: top limb decides despite smaller lower limbs, min = GRUMPKIN.
-#[test]
-fn test_from_field_254_gt_grumpkin_1() {
-    let modulus: [u128; 3] =
-        [GRUMPKIN_MODULUS[0] - 1, GRUMPKIN_MODULUS[1] - 1, GRUMPKIN_MODULUS[2] + 1];
-    let params: BigIntParams<3, 254> = BigIntParams::new(modulus, [0 as u128; 3]);
-    let result: [u128; 3] = from_field(&params, -1 as Field);
-    assert(result[0] == GRUMPKIN_MODULUS[0] - 1);
-    assert(result[1] == GRUMPKIN_MODULUS[1]);
-    assert(result[2] == GRUMPKIN_MODULUS[2]);
-}
-
-// MOD_BITS == 254, MOD < GRUMPKIN: top limb decides despite larger lower limbs, min = MOD.
-#[test]
-fn test_from_field_254_lt_grumpkin() {
-    let modulus: [u128; 3] =
-        [GRUMPKIN_MODULUS[0] + 1, GRUMPKIN_MODULUS[1] + 1, GRUMPKIN_MODULUS[2] - 1];
-    let params: BigIntParams<3, 254> = BigIntParams::new(modulus, [0 as u128; 3]);
-
-    let _neg_one: Field = (modulus[0] as Field)
-        + (modulus[1] as Field) * (TWO_POW_120 as Field)
-        + (modulus[2] as Field) * TWO_POW_240
-        - 1;
-    let result: [u128; 3] = from_field(&params, _neg_one);
-    assert(result[0] == modulus[0] - 1);
-    assert(result[1] == modulus[1]);
-    assert(result[2] == modulus[2])
+// MOD_BITS == 254: values in [2^253, GRUMPKIN_MODULUS) are rejected.
+#[test(should_fail_with = "call to assert_max_bit_size")]
+fn test_from_field_mod_bits_eq_254_rejects_neg_one() {
+    let _: U253 = U253::from(-1);
 }
 
 #[test]
@@ -844,7 +808,7 @@ fn fuzz_cmp_equal(seed: [u8; 5]) {
     assert(c == false);
 }
 
-fn test_validate_in_field_modulus_fail<let N: u32, BN>()
+fn test_validate_canonical_modulus_fail<let N: u32, BN>()
 where
     BN: BigInt,
 {
@@ -943,7 +907,7 @@ fn test_add_modulus_limit() {
     // p + 2^{257} - 1 should be the maximum allowed value fed into an add operation
     // when adding, if the result overflows the modulus, we conditionally subtract the modulus, producing 2^{257} - 1
     // this is the largest value that will satisfy the range check applied when constructing a bigint
-    let p: [u128; 3] = U256::params().modulus;
+    let p: [u128; 3] = U256::modulus().get_limbs();
     let a: U256 = U256::from_limbs(p);
     let b: U256 = U256::from_limbs(U256_MAX_REPRESENTABLE);
     let result = a + b;
@@ -954,7 +918,7 @@ fn test_add_modulus_limit() {
 fn test_add_modulus_overflow() {
     // (2^{257} - 1) + (p + 1) = 2^{257} + p
     // after subtracting modulus, result is 2^{257} which does not satisfy the range check applied when constructing a BigInt
-    let p: [u128; 3] = U256::params().modulus;
+    let p: [u128; 3] = U256::modulus().get_limbs();
     let one = [1, 0, 0];
     // Safety: test code
     let a: U256 = U256::from_limbs(unsafe { __helper_add(&p, &one) });
@@ -1121,8 +1085,8 @@ fn test_assert_is_not_equal_overloaded_fail_U256() {
 }
 
 #[test(should_fail_with = "assert_is_not_zero_integer fail")]
-fn test_validate_in_field_modulus_fail_U256() {
-    test_validate_in_field_modulus_fail::<3, U256>();
+fn test_validate_canonical_modulus_fail_U256() {
+    test_validate_canonical_modulus_fail::<3, U256>();
 }
 
 #[test]
@@ -1198,8 +1162,8 @@ fn test_assert_is_not_equal_overloaded_fail_U2048() {
 }
 
 #[test(should_fail_with = "assert_is_not_zero_integer fail")]
-fn test_validate_in_field_modulus_fail_U2048() {
-    test_validate_in_field_modulus_fail::<18, U2048>();
+fn test_validate_canonical_modulus_fail_U2048() {
+    test_validate_canonical_modulus_fail::<18, U2048>();
 }
 
 #[test]

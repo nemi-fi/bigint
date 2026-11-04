@@ -4,3 +4,4 @@ pub(crate) mod constrained_ops;
 pub(crate) mod unconstrained_helpers;
 pub(crate) mod expressions;
 pub(crate) mod serialization;
+pub(crate) mod modulus;
