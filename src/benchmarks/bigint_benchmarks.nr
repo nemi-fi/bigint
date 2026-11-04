@@ -16,15 +16,11 @@ comptime fn make_bench(m: Module, typ_path: Quoted) -> Quoted {
     let eq_bench_name = f"eq_{module_name}".quoted_contents();
     let cmp_bench_name = f"cmp_{module_name}".quoted_contents();
     let is_zero_bench_name = f"is_zero_{module_name}".quoted_contents();
-    let is_zero_integer_bench_name = f"is_zero_integer_{module_name}".quoted_contents();
 
     let assert_is_not_equal_bench_name = f"assert_is_not_equal_{module_name}".quoted_contents();
     let assert_is_not_zero_bench_name = f"assert_is_not_zero_{module_name}".quoted_contents();
-    let assert_is_not_zero_integer_bench_name =
-        f"assert_is_not_zero_integer_{module_name}".quoted_contents();
 
     let validate_in_range_bench_name = f"validate_in_range_{module_name}".quoted_contents();
-    let validate_canonical_bench_name = f"validate_canonical_{module_name}".quoted_contents();
 
     let from_field_bench_name = f"from_field_{module_name}".quoted_contents();
     let to_field_bench_name = f"to_field_{module_name}".quoted_contents();
@@ -49,7 +45,7 @@ comptime fn make_bench(m: Module, typ_path: Quoted) -> Quoted {
     let typ = typ_path.as_type();
 
     let typ_token = typ_path;
-    let MOD_BITS = quote { <$typ_token as $BigInt>::MOD_BITS };
+    let BITS = quote { <$typ_token as $BigInt>::BITS };
     let N = quote { <$typ_token as $BigInt>::N };
 
     quote {
@@ -99,11 +95,6 @@ comptime fn make_bench(m: Module, typ_path: Quoted) -> Quoted {
         }
 
         #[export]
-        fn $is_zero_integer_bench_name(a: $typ) -> bool {
-            $BigInt::unsafe_is_zero_integer(&a)
-        }
-
-        #[export]
         fn $assert_is_not_equal_bench_name(a: $typ, b: $typ) {
             $BigInt::assert_is_not_equal(&a, &b)
         }
@@ -114,18 +105,8 @@ comptime fn make_bench(m: Module, typ_path: Quoted) -> Quoted {
         }
 
         #[export]
-        fn $assert_is_not_zero_integer_bench_name(a: $typ) {
-            $BigInt::unsafe_assert_is_not_zero_integer(&a)
-        }
-
-        #[export]
         fn $validate_in_range_bench_name(a: $typ) {
             $BigInt::validate_in_range(&a)
-        }
-
-        #[export]
-        fn $validate_canonical_bench_name(a: $typ) {
-            $BigInt::validate_canonical(&a)
         }
 
         #[export]
@@ -139,23 +120,23 @@ comptime fn make_bench(m: Module, typ_path: Quoted) -> Quoted {
         }
 
         #[export]
-        fn $from_be_bytes_bench_name(a: [u8; ($MOD_BITS + 7) / 8]) -> [u128; $N] {
-            crate::fns::serialization::from_be_bytes_unsafe::<$N, $MOD_BITS>(&a)
+        fn $from_be_bytes_bench_name(a: [u8; ($BITS + 7) / 8]) -> [u128; $N] {
+            crate::fns::serialization::from_be_bytes::<$N, $BITS>(&a)
         }
 
         #[export]
-        fn $to_be_bytes_bench_name(a: $typ) -> [u8; ($MOD_BITS + 7) / 8] {
-            crate::fns::serialization::to_be_bytes_unsafe::<$N, $MOD_BITS>(&$BigInt::get_limbs(&a))
+        fn $to_be_bytes_bench_name(a: $typ) -> [u8; ($BITS + 7) / 8] {
+            crate::fns::serialization::to_be_bytes::<$N, $BITS>(&$BigInt::get_limbs(&a))
         }
 
         #[export]
-        fn $from_le_bytes_bench_name(a: [u8; ($MOD_BITS + 7) / 8]) -> [u128; $N] {
-            crate::fns::serialization::from_le_bytes_unsafe::<$N, $MOD_BITS>(&a)
+        fn $from_le_bytes_bench_name(a: [u8; ($BITS + 7) / 8]) -> [u128; $N] {
+            crate::fns::serialization::from_le_bytes::<$N, $BITS>(&a)
         }
 
         #[export]
-        fn $to_le_bytes_bench_name(a: $typ) -> [u8; ($MOD_BITS + 7) / 8] {
-            crate::fns::serialization::to_le_bytes_unsafe::<$N, $MOD_BITS>(&$BigInt::get_limbs(&a))
+        fn $to_le_bytes_bench_name(a: $typ) -> [u8; ($BITS + 7) / 8] {
+            crate::fns::serialization::to_le_bytes::<$N, $BITS>(&$BigInt::get_limbs(&a))
         }
 
         #[export]

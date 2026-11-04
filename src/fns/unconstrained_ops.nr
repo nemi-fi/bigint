@@ -16,10 +16,10 @@ use crate::constants::TWO_POW_120;
 /// Takes a seed byte array and generates a `BigInt` in the range [0, modulus-1].
 ///
 /// See more information in `constrained_ops.nr`: `derive_from_seed`
-pub unconstrained fn __derive_from_seed<let N: u32, let MOD_BITS: u32, let SeedBytes: u32>(
+pub unconstrained fn __derive_from_seed<let N: u32, let BITS: u32, let SeedBytes: u32>(
     seed: [u8; SeedBytes],
 ) -> [u128; N] {
-    derive_from_seed::<N, MOD_BITS, SeedBytes>(seed)
+    derive_from_seed::<N, BITS, SeedBytes>(seed)
 }
 
 // ------------------------------ COMPARISON FUNCTIONS ------------------------------
@@ -111,25 +111,25 @@ pub unconstrained fn __sub<let N: u32>(
 /// For `BigInt` values `x` and `y` compute (`Q`, `R`) such that:
 ///      x * y = R + Q * m, 0 <= R < m
 /// See `__reduce` for details.
-pub(crate) unconstrained fn __mul_with_quotient<let N: u32, let MOD_BITS: u32>(
+pub(crate) unconstrained fn __mul_with_quotient<let N: u32, let BITS: u32>(
     lhs: &[u128; N],
     rhs: &[u128; N],
 ) -> ([u128; N], [u128; N]) {
     let to_reduce: [u128; N * 2] = __helper_mul(lhs, rhs);
-    __reduce::<N, MOD_BITS>(&to_reduce)
+    __reduce::<N, BITS>(&to_reduce)
 }
 
 /// Multiplies two `BigInt` values with modular reduction (unconstrained).
-pub unconstrained fn __mul<let N: u32, let MOD_BITS: u32>(
+pub unconstrained fn __mul<let N: u32, let BITS: u32>(
     lhs: &[u128; N],
     rhs: &[u128; N],
 ) -> [u128; N] {
-    __mul_with_quotient::<N, MOD_BITS>(lhs, rhs).1
+    __mul_with_quotient::<N, BITS>(lhs, rhs).1
 }
 
 /// Squares a `BigInt` value with modular reduction (unconstrained).
-pub unconstrained fn __sqr<let N: u32, let MOD_BITS: u32>(val: &[u128; N]) -> [u128; N] {
-    __mul_with_quotient::<N, MOD_BITS>(val, val).1
+pub unconstrained fn __sqr<let N: u32, let BITS: u32>(val: &[u128; N]) -> [u128; N] {
+    __mul_with_quotient::<N, BITS>(val, val).1
 }
 
 /// Modular exponentiation via square-and-multiply. LSB-first (unconstrained).
@@ -137,21 +137,21 @@ pub unconstrained fn __sqr<let N: u32, let MOD_BITS: u32>(val: &[u128; N]) -> [u
 /// Computes `x^e mod m`
 ///
 /// ## Note
-/// For the loop, we are using `MOD_BITS` instead of `__get_msb`
+/// For the loop, we are using `BITS` instead of `__get_msb`
 /// because it is much much cheaper
-pub unconstrained fn __pow<let N: u32, let MOD_BITS: u32>(
+pub unconstrained fn __pow<let N: u32, let BITS: u32>(
     val: &[u128; N],
     exponent: &[u128; N],
 ) -> [u128; N] {
     let mut accumulator: [u128; N] = __one();
     let mut x: [u128; N] = *val;
-    let num_bits: u32 = MOD_BITS + 1;
+    let num_bits: u32 = BITS;
 
     for i in 0..num_bits {
         if __get_bit(exponent, i) {
-            accumulator = __mul::<N, MOD_BITS>(&accumulator, &x);
+            accumulator = __mul::<N, BITS>(&accumulator, &x);
         }
-        x = __sqr::<N, MOD_BITS>(&x);
+        x = __sqr::<N, BITS>(&x);
     }
     accumulator
 }

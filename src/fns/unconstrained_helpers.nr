@@ -176,23 +176,23 @@ pub(crate) unconstrained fn compute_gte_flags<let N: u32>(
 
 // ------------------------------ MODULAR REDUCTION ------------------------------
 
-/// Reduce a double-width value modulo `2^(MOD_BITS - 1)`, returning (Q, R) (unconstrained)
+/// Reduce a double-width value modulo `2^BITS`, returning (Q, R) (unconstrained)
 ///
 /// For the `2N`-limb value `x` compute (`Q`, `R`) such that:
-///      x = R + Q * 2^(MOD_BITS - 1), 0 <= R < 2^(MOD_BITS - 1)
+///      x = R + Q * 2^BITS, 0 <= R < 2^BITS
 ///
-/// As the modulus is a power of two, `R` is the low `MOD_BITS - 1` bits of `x` and `Q` is the
+/// As the modulus is a power of two, `R` is the low `BITS` bits of `x` and `Q` is the
 /// remaining high bits.
 ///
 /// ## Note
-/// `Q` is truncated to `N` limbs. Callers must ensure that `x < 2^(120 * N + MOD_BITS - 1)`,
+/// `Q` is truncated to `N` limbs. Callers must ensure that `x < 2^(120 * N + BITS)`,
 /// which holds for the product of any two `N`-limb values whose limbs are at most 120 bits.
-pub(crate) unconstrained fn __reduce<let N: u32, let MOD_BITS: u32>(
+pub(crate) unconstrained fn __reduce<let N: u32, let BITS: u32>(
     x: &[u128; 2 * N],
 ) -> ([u128; N], [u128; N]) {
-    let modulus_bits: u32 = MOD_BITS - 1;
-    let top_limb: u32 = modulus_bits / 120;
-    let top_limb_mask: u128 = (1 << ((modulus_bits % 120) as u128)) - 1;
+    let bits: u32 = BITS;
+    let top_limb: u32 = bits / 120;
+    let top_limb_mask: u128 = (1 << ((bits % 120) as u128)) - 1;
 
     let mut remainder: [u128; N] = [0; N];
     for i in 0..top_limb {
@@ -200,7 +200,7 @@ pub(crate) unconstrained fn __reduce<let N: u32, let MOD_BITS: u32>(
     }
     remainder[top_limb] = x[top_limb] & top_limb_mask;
 
-    let long_quotient: [u128; 2 * N] = __shr(x, modulus_bits);
+    let long_quotient: [u128; 2 * N] = __shr(x, bits);
     let mut quotient: [u128; N] = [0; N];
     for i in 0..N {
         quotient[i] = long_quotient[i];
