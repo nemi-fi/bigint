@@ -85,6 +85,8 @@ jobs:
         if: github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
         uses: marocchino/sticky-pull-request-comment@v2
         with:
+          # each diff is posted as its own comment
+          header: gates
           # delete the comment in case changes no longer impact circuit sizes
           delete: ${{ !steps.gates_diff.outputs.markdown }}
           message: ${{ steps.gates_diff.outputs.markdown }}
@@ -130,6 +132,8 @@ jobs:
         if: github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
         uses: marocchino/sticky-pull-request-comment@v2
         with:
-          # delete the comment in case changes no longer impact circuit sizes
-          delete: ${{ !steps.brillig_diff.outputs.markdown }}
-          message: ${{ steps.brillig_diff.outputs.markdown }}
+          # each diff is posted as its own comment
+          header: brillig
+          # delete the comment in case changes no longer impact bytecode sizes
+          delete: ${{ !steps.brillig_bytecode_diff.outputs.markdown }}
+          message: ${{ steps.brillig_bytecode_diff.outputs.markdown }}
