@@ -20,7 +20,8 @@ use std::ops::{Add, Div, Mul, Sub};
 ///   expensive. For multiple operations, prefer using unconstrained methods followed by
 ///   `evaluate_quadratic_expression`.
 ///
-/// - **Wrapping semantics**: `+`, `-`, `*` and negation wrap, i.e. are computed modulo `2^BITS`.
+/// - **Checked semantics**: `+` and `-` fail on overflow and underflow. `*` currently wraps,
+///   i.e. is computed modulo `2^BITS`.
 ///
 /// # Example
 /// ```
@@ -145,13 +146,17 @@ pub trait BigInt: Add + Sub + Mul + Div + Eq {
     /// No constraints are generated. Use `is_zero()` for constrained check.
     unconstrained fn __is_zero(&self) -> bool;
 
-    /// Unconstrained addition: computes `self + other (mod 2^BITS)`.
+    /// Unconstrained addition: computes `self + other`.
+    ///
+    /// Fails if the sum overflows `2^BITS`.
     ///
     /// # Safety
     /// No constraints are generated. Constrain the result using `evaluate_quadratic_expression`.
     unconstrained fn __add(&self, other: &Self) -> Self;
 
-    /// Unconstrained subtraction: computes `self - other (mod 2^BITS)`.
+    /// Unconstrained subtraction: computes `self - other`.
+    ///
+    /// Fails if `other > self`.
     ///
     /// # Safety
     /// No constraints are generated. Constrain the result using `evaluate_quadratic_expression`.
@@ -403,11 +408,11 @@ pub comptime fn derive_bigint(strukt: TypeDefinition, BITS: u32) -> Quoted {
             }
 
             unconstrained fn __add(&self, other: &Self) -> Self {
-                Self {limbs: $crate::internal::__add(&$crate::internal::get_modulus::<$N, $BITS>(), &self.get_limbs(), &other.get_limbs())}
+                Self {limbs: $crate::internal::__add::<$N, $BITS>(&self.get_limbs(), &other.get_limbs())}
             }
 
             unconstrained fn __sub(&self, other: &Self) -> Self {
-                Self {limbs: $crate::internal::__sub(&$crate::internal::get_modulus::<$N, $BITS>(), &self.get_limbs(), &other.get_limbs())}
+                Self {limbs: $crate::internal::__sub::<$N, $BITS>(&self.get_limbs(), &other.get_limbs())}
             }
 
             unconstrained fn __mul(&self, other: &Self) -> Self {
