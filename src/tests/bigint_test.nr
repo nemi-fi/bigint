@@ -15,13 +15,13 @@ use crate::types::U512::U512;
 // (`BITS <= 253`), used to exercise code paths specific to such types.
 
 // A 252-bit unsigned integer
-#[derive_bigint(3, 252)]
+#[derive_bigint(252)]
 pub struct U252 {
     limbs: [u128; 3],
 }
 
 // A 253-bit unsigned integer
-#[derive_bigint(3, 253)]
+#[derive_bigint(253)]
 pub struct U253 {
     limbs: [u128; 3],
 }
