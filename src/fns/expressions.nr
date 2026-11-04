@@ -20,12 +20,12 @@ use crate::fns::modulus::{get_double_modulus, get_modulus};
 /// Finally, to ensure we do not underflow in the most significant limb, we use `2p` instead of `p`
 ///
 /// 2. Returns the `Field` values that are not normalized to be 120-bit
-unconstrained fn __add_linear_expression<let N: u32, let MOD_BITS: u32, let M: u32>(
+unconstrained fn __add_linear_expression<let N: u32, let BITS: u32, let M: u32>(
     vals: &[[u128; N]; M],
     flags: &[bool; M],
 ) -> ([Field; N]) {
     let mut sum: [Field; N] = [0; N];
-    let modulus2: [u128; N] = get_double_modulus::<N, MOD_BITS>();
+    let modulus2: [u128; N] = get_double_modulus::<N, BITS>();
     for i in 0..M {
         if (flags[i]) {
             for j in 0..N {
@@ -46,7 +46,7 @@ unconstrained fn __add_linear_expression<let N: u32, let MOD_BITS: u32, let M: u
 ///
 /// ## Note
 /// Returns the `Field` values that are not normalized to be 120-bit
-unconstrained fn __compute_quadratic_expression_product<let N: u32, let MOD_BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
+unconstrained fn __compute_quadratic_expression_product<let N: u32, let BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
     lhs_terms: &[[[u128; N]; LHS_N]; NUM_PRODUCTS],
     lhs_flags: &[[bool; LHS_N]; NUM_PRODUCTS],
     rhs_terms: &[[[u128; N]; RHS_N]; NUM_PRODUCTS],
@@ -58,10 +58,10 @@ unconstrained fn __compute_quadratic_expression_product<let N: u32, let MOD_BITS
     let mut rhs: [[Field; N]; NUM_PRODUCTS] = [[0; N]; NUM_PRODUCTS];
 
     for i in 0..NUM_PRODUCTS {
-        lhs[i] = __add_linear_expression::<N, MOD_BITS, LHS_N>(&lhs_terms[i], &lhs_flags[i]);
-        rhs[i] = __add_linear_expression::<N, MOD_BITS, RHS_N>(&rhs_terms[i], &rhs_flags[i]);
+        lhs[i] = __add_linear_expression::<N, BITS, LHS_N>(&lhs_terms[i], &lhs_flags[i]);
+        rhs[i] = __add_linear_expression::<N, BITS, RHS_N>(&rhs_terms[i], &rhs_flags[i]);
     }
-    let add: [Field; N] = __add_linear_expression::<N, MOD_BITS, ADD_N>(linear_terms, linear_flags);
+    let add: [Field; N] = __add_linear_expression::<N, BITS, ADD_N>(linear_terms, linear_flags);
 
     let mut mulout: [Field; 2 * N] = [0; 2 * N];
     for i in 0..N {
@@ -158,7 +158,7 @@ unconstrained fn __compute_borrow_flags<let N: u32>(
 /// The returned `quotient` and `borrow_flags` are later constrained
 /// in-circuit by `compute_quadratic_expression_with_modulus` and
 /// `evaluate_quadratic_expression`.
-unconstrained fn __compute_quadratic_expression_with_borrow_flags<let N: u32, let MOD_BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
+unconstrained fn __compute_quadratic_expression_with_borrow_flags<let N: u32, let BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
     lhs_terms: &[[[u128; N]; LHS_N]; NUM_PRODUCTS],
     lhs_flags: &[[bool; LHS_N]; NUM_PRODUCTS],
     rhs_terms: &[[[u128; N]; RHS_N]; NUM_PRODUCTS],
@@ -166,7 +166,7 @@ unconstrained fn __compute_quadratic_expression_with_borrow_flags<let N: u32, le
     linear_terms: &[[u128; N]; ADD_N],
     linear_flags: &[bool; ADD_N],
 ) -> ([u128; N], [bool; 2 * N - 2]) {
-    let mulout_p: [Field; 2 * N] = __compute_quadratic_expression_product::<N, MOD_BITS, LHS_N, RHS_N, NUM_PRODUCTS, ADD_N>(
+    let mulout_p: [Field; 2 * N] = __compute_quadratic_expression_product::<N, BITS, LHS_N, RHS_N, NUM_PRODUCTS, ADD_N>(
         lhs_terms,
         lhs_flags,
         rhs_terms,
@@ -177,13 +177,13 @@ unconstrained fn __compute_quadratic_expression_with_borrow_flags<let N: u32, le
 
     // `__normalize_limbs` will validate that we do not overflow 2N, normally we should not overflow 2N-1
     let relation_result: [u128; 2 * N] = split_bits::__normalize_limbs(mulout_p);
-    let (quotient, remainder): ([u128; N], [u128; N]) = __reduce::<N, MOD_BITS>(&relation_result);
+    let (quotient, remainder): ([u128; N], [u128; N]) = __reduce::<N, BITS>(&relation_result);
 
     // This is verified later by the range checks but left for debugging purposes
     assert(__is_zero(&remainder));
 
     // We do not normalize `mulout_n` so we won't fill the `2 * N - 1`
-    let modulus: [u128; N] = get_modulus::<N, MOD_BITS>();
+    let modulus: [u128; N] = get_modulus::<N, BITS>();
     let mut mulout_n: [Field; 2 * N] = [0; 2 * N];
     for i in 0..N {
         for j in 0..N {
@@ -207,7 +207,7 @@ unconstrained fn __compute_quadratic_expression_with_borrow_flags<let N: u32, le
 /// Computes the quotient/remainder of a quadratic expression (unconstrained)
 ///
 /// See `__compute_quadratic_expression_with_borrow_flags` for full description
-pub(crate) unconstrained fn __compute_quadratic_expression<let N: u32, let MOD_BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
+pub(crate) unconstrained fn __compute_quadratic_expression<let N: u32, let BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
     lhs_terms: &[[[u128; N]; LHS_N]; NUM_PRODUCTS],
     lhs_flags: &[[bool; LHS_N]; NUM_PRODUCTS],
     rhs_terms: &[[[u128; N]; RHS_N]; NUM_PRODUCTS],
@@ -215,7 +215,7 @@ pub(crate) unconstrained fn __compute_quadratic_expression<let N: u32, let MOD_B
     linear_terms: &[[u128; N]; ADD_N],
     linear_flags: &[bool; ADD_N],
 ) -> ([u128; N], [u128; N]) {
-    let mulout: [Field; 2 * N] = __compute_quadratic_expression_product::<N, MOD_BITS, LHS_N, RHS_N, NUM_PRODUCTS, ADD_N>(
+    let mulout: [Field; 2 * N] = __compute_quadratic_expression_product::<N, BITS, LHS_N, RHS_N, NUM_PRODUCTS, ADD_N>(
         lhs_terms,
         lhs_flags,
         rhs_terms,
@@ -226,7 +226,7 @@ pub(crate) unconstrained fn __compute_quadratic_expression<let N: u32, let MOD_B
     // __normalize_limbs will validate that we do not overflow 2N, normally we should not overflow 2N-1
     let relation_result: [u128; 2 * N] = split_bits::__normalize_limbs(mulout);
 
-    let (quotient, remainder): ([u128; N], [u128; N]) = __reduce::<N, MOD_BITS>(&relation_result);
+    let (quotient, remainder): ([u128; N], [u128; N]) = __reduce::<N, BITS>(&relation_result);
 
     (quotient, remainder)
 }
@@ -251,7 +251,7 @@ pub(crate) unconstrained fn __compute_quadratic_expression<let N: u32, let MOD_B
 /// accumulated and the top limb of `MOD` is very small. In practice, the
 /// global `BigInt` range and operand-count assumptions in
 /// `evaluate_quadratic_expression` rule out such patterns.
-fn compute_linear_expressions<let N: u32, let MOD_BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
+fn compute_linear_expressions<let N: u32, let BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
     lhs_terms: &[[[u128; N]; LHS_N]; NUM_PRODUCTS],
     lhs_flags: &[[bool; LHS_N]; NUM_PRODUCTS],
     rhs_terms: &[[[u128; N]; RHS_N]; NUM_PRODUCTS],
@@ -266,7 +266,7 @@ fn compute_linear_expressions<let N: u32, let MOD_BITS: u32, let LHS_N: u32, let
     // linear terms
     let mut lin_expr: [Field; N] = [0; N];
 
-    let double_modulus: [u128; N] = get_double_modulus::<N, MOD_BITS>();
+    let double_modulus: [u128; N] = get_double_modulus::<N, BITS>();
     for k in 0..NUM_PRODUCTS {
         for i in 0..N {
             for j in 0..LHS_N {
@@ -326,13 +326,13 @@ fn compute_linear_expressions<let N: u32, let MOD_BITS: u32, let LHS_N: u32, let
 ///
 /// Additionally, we constrain the quotient limbs via `validate_quotient_in_range`:
 ///   - limbs `0..N-2` of `quotient` are < 2^{120};
-///   - the top limb is < 2^{TOP_LIMB_BITS + 6}.
-/// Which validates `quotient < 2^{MOD_BITS + 6}`
+///   - the top limb is < 2^{TOP_LIMB_BITS + 7}.
+/// Which validates `quotient < 2^{BITS + 7} = 2^7 * MOD`
 ///
 /// ## TODO
 /// Apply static or runtime checks in this method to validate that the effective
 /// `twiddle_factor` does not exceed 6 under the chosen parameters.
-fn compute_quadratic_expression_with_modulus<let N: u32, let MOD_BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
+fn compute_quadratic_expression_with_modulus<let N: u32, let BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
     lhs_terms: &[[[u128; N]; LHS_N]; NUM_PRODUCTS],
     lhs_flags: &[[bool; LHS_N]; NUM_PRODUCTS],
     rhs_terms: &[[[u128; N]; RHS_N]; NUM_PRODUCTS],
@@ -342,7 +342,7 @@ fn compute_quadratic_expression_with_modulus<let N: u32, let MOD_BITS: u32, let 
 ) -> [Field; 2 * N - 1] {
     // Safety: use an unconstrained function to compute the value of the quotient and borrow_flags out-of-circuit
     let (quotient, borrow_flags): ([u128; N], [bool; 2 * N - 2]) = unsafe {
-        __compute_quadratic_expression_with_borrow_flags::<N, MOD_BITS, LHS_N, RHS_N, NUM_PRODUCTS, ADD_N>(
+        __compute_quadratic_expression_with_borrow_flags::<N, BITS, LHS_N, RHS_N, NUM_PRODUCTS, ADD_N>(
             lhs_terms,
             lhs_flags,
             rhs_terms,
@@ -352,12 +352,12 @@ fn compute_quadratic_expression_with_modulus<let N: u32, let MOD_BITS: u32, let 
         )
     };
 
-    // Constrain the `quotient < 2^{MOD_BITS + 6}`
-    // By constraining limbs(0..N-2) to be < 2^120 and the the top limb < 2^{TOP_LIMB_BITS + 6}
-    validate_quotient_in_range::<N, MOD_BITS>(&quotient);
+    // Constrain the `quotient < 2^{BITS + 7}`
+    // By constraining limbs(0..N-2) to be < 2^120 and the the top limb < 2^{TOP_LIMB_BITS + 7}
+    validate_quotient_in_range::<N, BITS>(&quotient);
 
     // Compute the linear sums that represent L_i, R_i, A
-    let (lhs_linear, rhs_linear, lin_expr): ([[Field; N]; NUM_PRODUCTS], [[Field; N]; NUM_PRODUCTS], [Field; N]) = compute_linear_expressions::<N, MOD_BITS, LHS_N, RHS_N, NUM_PRODUCTS, ADD_N>(
+    let (lhs_linear, rhs_linear, lin_expr): ([[Field; N]; NUM_PRODUCTS], [[Field; N]; NUM_PRODUCTS], [Field; N]) = compute_linear_expressions::<N, BITS, LHS_N, RHS_N, NUM_PRODUCTS, ADD_N>(
         lhs_terms,
         lhs_flags,
         rhs_terms,
@@ -370,7 +370,7 @@ fn compute_quadratic_expression_with_modulus<let N: u32, let MOD_BITS: u32, let 
     // For this we need to be able to borrow values from more-significant limbs into less-significant limbs,
     // so that we can ensure that no limbs will underflow
     let mut expression_limbs: [Field; 2 * N - 1] = [0; 2 * N - 1];
-    let modulus: [u128; N] = get_modulus::<N, MOD_BITS>();
+    let modulus: [u128; N] = get_modulus::<N, BITS>();
 
     // Compute the product t0 * t1 + t4 - Quotient * MOD
     // TODO: this is super nasty as it requires a multiplication
@@ -507,7 +507,9 @@ fn validate_expression_is_zero<let N: u32>(mut limbs: [Field; N]) {
 /// honest witnesses.
 ///
 /// Each input is validated to have limbs `< 2^{120}` (non-top) or `< 2^{TOP_LIMB_BITS}`
-/// (top), where `TOP_LIMB_BITS = MOD_BITS - (N - 1) * 120`. After
+/// (top), where `TOP_LIMB_BITS = BITS - (N - 1) * 120`. We bound the top limb by
+/// `2^{TOP_LIMB_BITS + 1}` instead, the size of the top limb of `double_modulus`, which is
+/// added to the top limb of negated terms. After
 /// `compute_linear_expressions` sums `LHS_N` terms per side, each non-top limb of
 /// `lhs_linear` is at most `LHS_N * (2^{120} - 1)` and the top limb is at most
 /// `LHS_N * (2^{TOP_LIMB_BITS} - 1)`. Similarly for `rhs_linear`.
@@ -519,7 +521,7 @@ fn validate_expression_is_zero<let N: u32>(mut limbs: [Field; N]) {
 ///   - Position `N - 2`: `N - 1` pairs, all non-top * non-top. Dominates when
 ///     `TOP_LIMB_BITS < 120` (the common case).
 ///   - Position `N - 1`: `N` pairs, two of which mix a top limb with a non-top limb.
-///     Dominates only when `TOP_LIMB_BITS == 120`.
+///     Dominates only when `TOP_LIMB_BITS + 1 == 120`.
 ///
 /// ## Note on negation flags
 /// When a flag is true the per-term contribution becomes `double_modulus[i] - term[i]`,
@@ -534,8 +536,8 @@ fn validate_expression_is_zero<let N: u32>(mut limbs: [Field; N]) {
 /// `p` (`~2^{254}`), `Field.lt()` could wrap around and give a false pass. This
 /// requires roughly `NUM_PRODUCTS * LHS_N * RHS_N * (N - 1) > 2^{14}`, which is
 /// unrealistic in practice.
-pub(crate) fn assert_product_limbs_fit_in_246_bits<let N: u32, let MOD_BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32>() {
-    let top_limb_bits: u128 = (MOD_BITS - (N - 1) * 120) as u128;
+pub(crate) fn assert_product_limbs_fit_in_246_bits<let N: u32, let BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32>() {
+    let top_limb_bits: u128 = (BITS + 1 - (N - 1) * 120) as u128;
     let max_non_top_limb: Field = (TWO_POW_120 - 1) as Field;
     let max_top_limb: Field = ((1u128 << top_limb_bits) - 1) as Field;
 
@@ -640,52 +642,14 @@ pub(crate) fn assert_product_limbs_fit_in_246_bits<let N: u32, let MOD_BITS: u32
 ///     The middle limb will contain a value that will definitely overflow the 2^{246} bound.
 ///
 /// ## Soundness
-/// This function is conditionally sound: it enforces that the degree-2 relation
-/// holds modulo `MOD`, but it does not, by itself, enforce that any particular
-/// term (for example a result `z`) is a *canonical* representative in
-/// `[0, MOD)`.
-///
-/// In other words, if the surrounding relation is invariant under adding a
-/// multiple of `MOD` to one of its terms, then a dishonest prover can exploit
-/// this. For example, consider a multiplication relation:
+/// This function enforces that the degree-2 relation holds modulo `MOD = 2^BITS`. Every term is
+/// range-checked to `BITS` bits, so each term is the unique representative of its value in
+/// `[0, MOD)`. In particular, for a multiplication relation
 ///
 ///     x * y - z = 0 (mod MOD)
 ///
-/// Internally we encode this as:
-///
-///     x * y + 2 * MOD - z - quotient * MOD = 0
-///
-/// which is equivalent to:
-///
-///     x * y - z = (quotient - 2) * MOD
-///
-/// Suppose the honest witness uses some `z` satisfying
-/// `0 <= z < MOD` and some `quotient`. If the `BigInt` encoding allows
-/// `z' = z + MOD` (i.e. `z' < 2^{MOD_BITS}` still holds), then a dishonest
-/// prover can instead provide:
-///
-///     z' = z + MOD
-///     quotient' = quotient - 1
-///
-/// and still satisfy:
-///
-///     x * y + 2 * MOD - z' - quotient' * MOD = 0
-///
-/// even though `z'` is no longer the canonical representative of `x * y mod MOD`.
-///
-/// The same consideration applies to almost every constrained `BigInt` relation:
-/// whenever a value participates *only* through a modular equality, and no
-/// separate range constraint is imposed on that value, the prover is free to
-/// shift it by an extra `MOD` as long as the resulting limb
-/// encoding still satisfies its bit-bounds. This is inherent in working with
-/// modular constraints; the responsibility for enforcing canonical
-/// representatives lies with the caller when it is required.
-///
-/// This is the same "extra modulus" phenomenon as in the `add`/`sub` functions:
-/// the constraints are sound for modular arithmetic, but any caller that
-/// requires canonical outputs in `[0, MOD)` must additionally enforce a
-/// range check (for example via `validate_canonical`) on the relevant terms.
-pub(crate) fn evaluate_quadratic_expression<let N: u32, let MOD_BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
+/// a prover cannot substitute `z' = z + MOD` for `z`, as `z' >= 2^BITS` fails the range check.
+pub(crate) fn evaluate_quadratic_expression<let N: u32, let BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
     lhs_terms: &[[[u128; N]; LHS_N]; NUM_PRODUCTS],
     lhs_flags: &[[bool; LHS_N]; NUM_PRODUCTS],
     rhs_terms: &[[[u128; N]; RHS_N]; NUM_PRODUCTS],
@@ -693,17 +657,17 @@ pub(crate) fn evaluate_quadratic_expression<let N: u32, let MOD_BITS: u32, let L
     linear_terms: &[[u128; N]; ADD_N],
     linear_flags: &[bool; ADD_N],
 ) {
-    assert_product_limbs_fit_in_246_bits::<N, MOD_BITS, LHS_N, RHS_N, NUM_PRODUCTS>();
+    assert_product_limbs_fit_in_246_bits::<N, BITS, LHS_N, RHS_N, NUM_PRODUCTS>();
 
     lhs_terms.for_each(|lhs_limbs: [[u128; N]; LHS_N]| {
-        lhs_limbs.for_each(|term: [u128; N]| validate_in_range::<N, MOD_BITS>(&term))
+        lhs_limbs.for_each(|term: [u128; N]| validate_in_range::<N, BITS>(&term))
     });
     rhs_terms.for_each(|rhs_limbs: [[u128; N]; RHS_N]| {
-        rhs_limbs.for_each(|term: [u128; N]| validate_in_range::<N, MOD_BITS>(&term))
+        rhs_limbs.for_each(|term: [u128; N]| validate_in_range::<N, BITS>(&term))
     });
-    linear_terms.for_each(|term: [u128; N]| validate_in_range::<N, MOD_BITS>(&term));
+    linear_terms.for_each(|term: [u128; N]| validate_in_range::<N, BITS>(&term));
 
-    let expression_limbs: [Field; 2 * N - 1] = compute_quadratic_expression_with_modulus::<N, MOD_BITS, LHS_N, RHS_N, NUM_PRODUCTS, ADD_N>(
+    let expression_limbs: [Field; 2 * N - 1] = compute_quadratic_expression_with_modulus::<N, BITS, LHS_N, RHS_N, NUM_PRODUCTS, ADD_N>(
         lhs_terms,
         lhs_flags,
         rhs_terms,
@@ -738,7 +702,7 @@ pub(crate) fn evaluate_quadratic_expression<let N: u32, let MOD_BITS: u32, let L
 /// We leave the borrow values at 2^{246}, even though we should never reach this bound with just 3 terms
 /// The cases where it can happen are: N >= 64 (middle limb will have 64 additions). And it is a pure completeness issue
 /// But the rest of the library will probably not work with that massive number anyway
-unconstrained fn __compute_udiv_mod_expression_with_borrow_flags<let N: u32, let MOD_BITS: u32>(
+unconstrained fn __compute_udiv_mod_expression_with_borrow_flags<let N: u32, let BITS: u32>(
     numerator: &[u128; N],
     divisor: &[u128; N],
     quotient: &[u128; N],
@@ -782,7 +746,7 @@ unconstrained fn __compute_udiv_mod_expression_with_borrow_flags<let N: u32, let
 /// the product has degree < N, i.e.
 ///     quotient * divisor < 2^{120 * N},
 /// so `quotient * divisor` fits into `N` 120-bit limbs and does not overflow.
-fn compute_udiv_mod_expression<let N: u32, let MOD_BITS: u32>(
+fn compute_udiv_mod_expression<let N: u32, let BITS: u32>(
     numerator: &[u128; N],
     divisor: &[u128; N],
     quotient: &[u128; N],
@@ -790,7 +754,7 @@ fn compute_udiv_mod_expression<let N: u32, let MOD_BITS: u32>(
 ) -> [Field; N] {
     // Safety: use an unconstrained function to compute the value of the quotient and borrow_flags out-of-circuit
     let borrow_flags: [bool; N - 1] = unsafe {
-        __compute_udiv_mod_expression_with_borrow_flags::<N, MOD_BITS>(
+        __compute_udiv_mod_expression_with_borrow_flags::<N, BITS>(
             numerator,
             divisor,
             quotient,
@@ -844,7 +808,7 @@ fn compute_udiv_mod_expression<let N: u32, let MOD_BITS: u32>(
 ///     quotient * divisor + remainder - numerator = 0
 ///
 /// then we can set quotient' = quotient - 1, remainder' = remainder + divisor
-pub(crate) fn validate_udiv_mod_expression<let N: u32, let MOD_BITS: u32>(
+pub(crate) fn validate_udiv_mod_expression<let N: u32, let BITS: u32>(
     numerator: &[u128; N],
     divisor: &[u128; N],
     quotient: &[u128; N],
@@ -852,14 +816,14 @@ pub(crate) fn validate_udiv_mod_expression<let N: u32, let MOD_BITS: u32>(
 ) {
     // The relation `quotient * divisor + remainder - numerator = 0` is a single
     // degree-2 product with no linear combinations, i.e. NUM_PRODUCTS = LHS_N = RHS_N = 1.
-    assert_product_limbs_fit_in_246_bits::<N, MOD_BITS, 1, 1, 1>();
+    assert_product_limbs_fit_in_246_bits::<N, BITS, 1, 1, 1>();
 
-    validate_in_range::<N, MOD_BITS>(numerator);
-    validate_in_range::<N, MOD_BITS>(divisor);
-    validate_in_range::<N, MOD_BITS>(quotient);
-    validate_in_range::<N, MOD_BITS>(remainder);
+    validate_in_range::<N, BITS>(numerator);
+    validate_in_range::<N, BITS>(divisor);
+    validate_in_range::<N, BITS>(quotient);
+    validate_in_range::<N, BITS>(remainder);
 
     let expression_limbs: [Field; N] =
-        compute_udiv_mod_expression::<N, MOD_BITS>(numerator, divisor, quotient, remainder);
+        compute_udiv_mod_expression::<N, BITS>(numerator, divisor, quotient, remainder);
     validate_expression_is_zero(expression_limbs);
 }

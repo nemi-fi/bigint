@@ -26,7 +26,6 @@ pub mod internal {
     pub use crate::fns::constrained_ops::cmp;
     pub use crate::fns::constrained_ops::derive_from_seed;
     pub use crate::fns::constrained_ops::div;
-    pub use crate::fns::constrained_ops::div_unsafe;
     pub use crate::fns::constrained_ops::eq;
     pub use crate::fns::constrained_ops::from_field;
     pub use crate::fns::constrained_ops::is_zero;
@@ -35,10 +34,7 @@ pub mod internal {
     pub use crate::fns::constrained_ops::sqr;
     pub use crate::fns::constrained_ops::sub;
     pub use crate::fns::constrained_ops::udiv_mod;
-    pub use crate::fns::constrained_ops::udiv_mod_unsafe;
     pub use crate::fns::constrained_ops::umod;
-    pub use crate::fns::constrained_ops::umod_unsafe;
-    pub use crate::fns::constrained_ops::validate_canonical;
     pub use crate::fns::constrained_ops::validate_in_range;
 
     // Unconstrained operations
@@ -54,13 +50,9 @@ pub mod internal {
 
     // Serialization functions
     pub use crate::fns::serialization::from_be_bytes;
-    pub use crate::fns::serialization::from_be_bytes_unsafe;
     pub use crate::fns::serialization::from_le_bytes;
-    pub use crate::fns::serialization::from_le_bytes_unsafe;
     pub use crate::fns::serialization::to_be_bytes;
-    pub use crate::fns::serialization::to_be_bytes_unsafe;
     pub use crate::fns::serialization::to_le_bytes;
-    pub use crate::fns::serialization::to_le_bytes_unsafe;
 }
 
 // Re-export the main structs so that users don't have to specify the paths
