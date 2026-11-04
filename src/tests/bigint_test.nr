@@ -298,9 +298,9 @@ fn test_derive_from_seed() {
 fn test_validate_derive_from_seed() {
     let seed: [u8; 4] = [1, 2, 3, 4];
     let result_bn: U256 = U256::derive_from_seed(seed);
-    assert(result_bn.get_limb(0) == 0xf68e392c1c514380c06ee756e4b0b2);
-    assert(result_bn.get_limb(1) == 0x3a79713def9df31cfeda9bad2c2afd);
-    assert(result_bn.get_limb(2) == 0x00000000000000000000000000fe31);
+    assert(result_bn.get_limb(0) == 0xfd2a2cad9bdafe1cf39def3d71793a);
+    assert(result_bn.get_limb(1) == 0xb2b0e456e76ec08043511c2c398ef6);
+    assert(result_bn.get_limb(2) == 0x000000000000000000000000009093);
 }
 
 // ------------------------------ LIMB ACCESS TESTS ------------------------------
