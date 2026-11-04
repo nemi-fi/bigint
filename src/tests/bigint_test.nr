@@ -541,6 +541,30 @@ fn test_from_limbs_rejects_two_pow_bits_U2048() {
 
 // ------------------------------ COMPARISON TESTS ------------------------------
 
+// `[2^120, 0, 0]` and `[0, 1, 0]` both encode the integer `2^120`. Such unnormalised values can
+// reach `eq` and `cmp` via circuit inputs or unconstrained functions, so these must reject them
+// rather than report the values as distinct.
+#[test(should_fail_with = "call to assert_max_bit_size")]
+fn test_eq_rejects_unnormalised_limbs() {
+    let a: U256 = U256::from_limbs_unsafe([TWO_POW_120, 0, 0]);
+    let b: U256 = U256::from_limbs_unsafe([0, 1, 0]);
+    assert(a != b);
+}
+
+#[test(should_fail_with = "call to assert_max_bit_size")]
+fn test_cmp_rejects_unnormalised_limbs() {
+    let a: U256 = U256::from_limbs_unsafe([TWO_POW_120, 0, 0]);
+    let b: U256 = U256::from_limbs_unsafe([0, 1, 0]);
+    assert(a > b);
+}
+
+#[test(should_fail_with = "call to assert_max_bit_size")]
+fn test_cmp_rejects_unnormalised_limbs_reversed() {
+    let a: U256 = U256::from_limbs_unsafe([TWO_POW_120, 0, 0]);
+    let b: U256 = U256::from_limbs_unsafe([0, 1, 0]);
+    assert(b > a);
+}
+
 fn test_eq<let N: u32, BN>()
 where
     BN: BigInt,
