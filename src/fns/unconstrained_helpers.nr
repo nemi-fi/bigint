@@ -103,39 +103,6 @@ pub(crate) unconstrained fn compute_gte_flags<let N: u32>(
 
 // ------------------------------ MODULAR REDUCTION ------------------------------
 
-/// Reduce a double-width value modulo `2^BITS`, returning (Q, R) (unconstrained)
-///
-/// For the `2N`-limb value `x` compute (`Q`, `R`) such that:
-///      x = R + Q * 2^BITS, 0 <= R < 2^BITS
-///
-/// As the modulus is a power of two, `R` is the low `BITS` bits of `x` and `Q` is the
-/// remaining high bits.
-///
-/// ## Note
-/// `Q` is truncated to `N` limbs. Callers must ensure that `x < 2^(120 * N + BITS)`,
-/// which holds for the product of any two `N`-limb values whose limbs are at most 120 bits.
-pub(crate) unconstrained fn __reduce<let N: u32, let BITS: u32>(
-    x: &[u128; 2 * N],
-) -> ([u128; N], [u128; N]) {
-    let bits: u32 = BITS;
-    let top_limb: u32 = bits / 120;
-    let top_limb_mask: u128 = (1 << ((bits % 120) as u128)) - 1;
-
-    let mut remainder: [u128; N] = [0; N];
-    for i in 0..top_limb {
-        remainder[i] = x[i];
-    }
-    remainder[top_limb] = x[top_limb] & top_limb_mask;
-
-    let long_quotient: [u128; 2 * N] = __shr(x, bits);
-    let mut quotient: [u128; N] = [0; N];
-    for i in 0..N {
-        quotient[i] = long_quotient[i];
-    }
-
-    (quotient, remainder)
-}
-
 // ------------------------------ ARITHMETIC HELPER FUNCTIONS ------------------------------
 // These are the functions that operate on limbs as if they were just big integers
 
@@ -250,34 +217,6 @@ pub(crate) unconstrained fn __shl<let N: u32>(input: &[u128; N], shift: u32) -> 
         let upshift: u128 = ((value << limb_shift) | remainder) & mask;
         result[i + num_shifted_limbs] = upshift;
         remainder = value >> remainder_shift;
-    }
-    result
-}
-
-/// Right-shifts a `BigInt` value by `shift` bits (unconstrained).
-///
-/// Performs a bitwise right shift across limbs.
-///
-/// # Note
-/// No bounds check is performed on `num_shifted_limbs`.
-/// Callers must ensure that `shift / 120 < N`
-pub(crate) unconstrained fn __shr<let N: u32>(input: &[u128; N], shift: u32) -> [u128; N] {
-    let mut result: [u128; N] = [0; N];
-
-    let num_shifted_limbs: u32 = shift / 120;
-    let limb_shift: u128 = (shift % 120) as u128;
-
-    let remainder_shift: u128 = 120 - limb_shift;
-    let low_mask: u128 = (1 as u128 << limb_shift) - 1;
-
-    result[0] = input[num_shifted_limbs] >> limb_shift;
-    for i in 1..(N - num_shifted_limbs) {
-        let value: u128 = input[i + num_shifted_limbs];
-
-        let carry: u128 = (value & low_mask) << remainder_shift;
-        result[i - 1] |= carry;
-
-        result[i] = value >> limb_shift;
     }
     result
 }
