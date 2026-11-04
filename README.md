@@ -58,19 +58,19 @@ A `UX` holds values in $[0, 2^X)$: the top limb is range-checked to `X - 120 * (
 
 ### Defining your own width
 
-A new width can be created with the `derive_bigint` macro, passing the number of limbs `N` and the bit width `BITS`:
+A new width can be created with the `derive_bigint` macro, passing the bit width:
 
 ```rust
 use bigint::{BigInt, derive_bigint};
 
 // An unsigned 320-bit integer
-#[derive_bigint(3, 320)]
+#[derive_bigint(320)]
 pub struct U320 {
     limbs: [u128; 3],
 }
 ```
 
-`BITS` must satisfy `120 * (N - 1) < BITS <= 120 * N - 2`, which is checked at compile time.
+The `limbs` array must have `N = ceil(BITS / 120)` elements. At least two limbs are required, and the top limb can hold at most 118 bits, so widths where `BITS % 120` is `0` or `119` are not supported. These are all checked at compile time.
 
 At least two limbs are required. Single-limb types are not supported.
 

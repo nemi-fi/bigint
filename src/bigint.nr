@@ -274,11 +274,56 @@ pub trait BigInt: Neg + Add + Sub + Mul + Div + Eq {
 }
 
 // We need macros that implement the BigInt, Default, From, Neg, Add, Sub, Mul, Div, Eq, Ord traits for each bigint type
-pub comptime fn derive_bigint(strukt: TypeDefinition, N: u32, BITS: u32) -> Quoted {
-    assert(N >= 2, "derive_bigint: at least two limbs are required");
+/// Returns `N` for a struct whose only field is `limbs: [u128; N]`.
+comptime fn num_limbs_of(strukt: TypeDefinition) -> u32 {
+    let fields = strukt.fields_as_written();
     assert(
-        ((N - 1) * 120 < BITS) & (BITS <= N * 120 - 2),
-        "derive_bigint: BITS must satisfy (N - 1) * 120 < BITS <= N * 120 - 2",
+        fields.len() == 1,
+        "derive_bigint: expected a struct with a single field `limbs: [u128; N]`",
+    );
+    let field = fields[0];
+    assert(
+        field.name() == quote { limbs },
+        "derive_bigint: expected a struct with a single field `limbs: [u128; N]`",
+    );
+    let array = field.typ().as_array();
+    assert(array.is_some(), "derive_bigint: expected `limbs` to have type `[u128; N]`");
+    let array = array.unwrap();
+    assert(
+        array.element_type() == quote { u128 }.as_type(),
+        "derive_bigint: expected `limbs` to have type `[u128; N]`",
+    );
+    let length = array.length_type().as_constant();
+    assert(length.is_some(), "derive_bigint: expected `limbs` to have a constant length");
+    length.unwrap()
+}
+
+/// Implements `BigInt` and the arithmetic and comparison traits for a `BITS`-bit unsigned integer.
+///
+/// The struct must have a single field `limbs: [u128; N]`, where `N` is the number of 120-bit limbs
+/// needed to hold `BITS` bits, i.e. `ceil(BITS / 120)`:
+///
+/// ```
+/// #[derive_bigint(256)]
+/// pub struct U256 {
+///     limbs: [u128; 3],
+/// }
+/// ```
+///
+/// At least two limbs are required, and the top limb must hold between 1 and 118 bits, so widths
+/// with `BITS % 120` equal to `0` or `119` are not supported.
+pub comptime fn derive_bigint(strukt: TypeDefinition, BITS: u32) -> Quoted {
+    let N: u32 = num_limbs_of(strukt);
+    let expected_limbs: u32 = (BITS + 119) / 120;
+    assert(
+        N == expected_limbs,
+        f"derive_bigint: a {BITS}-bit integer needs {expected_limbs} limbs, but `limbs` has {N}",
+    );
+    assert(N >= 2, "derive_bigint: at least two limbs are required");
+    let top_limb_bits: u32 = BITS - (N - 1) * 120;
+    assert(
+        top_limb_bits <= 118,
+        f"derive_bigint: unsupported width {BITS}: the top limb would hold {top_limb_bits} bits, but at most 118 are supported",
     );
     let typ = strukt.as_type();
     quote {
