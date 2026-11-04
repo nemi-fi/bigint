@@ -14,6 +14,9 @@ jobs:
     name: Benchmark library
     runs-on: ubuntu-latest
     permissions:
+      # Required to read and write workflow artifacts, e.g. for noir-gates-diff to find the
+      # gates report from `main`. This repository is internal, so this needs an explicit grant.
+      actions: write
       contents: write
       pull-requests: write
     steps:
