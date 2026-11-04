@@ -38,11 +38,6 @@ pub trait BigInt: Neg + Add + Sub + Mul + Div + Eq {
     /// Number of bits in the modulus.
     let MOD_BITS: u32;
 
-    /// Returns the number of bits in the modulus.
-    ///
-    /// Note: Takes a dummy `Self` parameter for trait method resolution.
-    fn modulus_bits(_: Self) -> u32;
-
     /// Returns the number of limbs used to represent this BigInt.
     ///
     /// Note: Takes a dummy `Self` parameter for trait method resolution.
@@ -390,10 +385,6 @@ pub comptime fn derive_bigint(strukt: TypeDefinition, N: u32, MOD_BITS: u32) -> 
             let N: u32 = $N; 
             let MOD_BITS: u32 = $MOD_BITS;
             
-            fn modulus_bits(_: Self) -> u32 {
-                $MOD_BITS
-            }
-            
             fn num_limbs(_: Self) -> u32 {
                 $N
             }
@@ -667,27 +658,6 @@ pub comptime fn derive_bigint(strukt: TypeDefinition, N: u32, MOD_BITS: u32) -> 
             }
         }
 
-    }
-}
-
-/// Conditionally selects between two BigInt values.
-///
-/// Returns `lhs` if `predicate` is `true`, otherwise returns `rhs`.
-///
-/// # Example
-/// ```
-/// let result = conditional_select(a, b, condition);
-/// // Equivalent to: if condition { a } else { b }
-/// ```
-///
-/// # Note
-/// This is useful for constant-time selection where you want to avoid branching
-/// on secret values in constrained code.
-pub fn conditional_select<T: BigInt>(lhs: T, rhs: T, predicate: bool) -> T {
-    if predicate {
-        lhs
-    } else {
-        rhs
     }
 }
 

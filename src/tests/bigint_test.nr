@@ -260,8 +260,8 @@ fn test_evaluate_quadratic_expression_many_negated_terms() {
 // ------------------------------ BASIC TESTS ------------------------------
 
 #[test]
-fn test_modulus_bits_U256() {
-    assert_eq(U256::zero().modulus_bits(), 257)
+fn test_mod_bits_U256() {
+    assert_eq(<U256 as BigInt>::MOD_BITS, 257)
 }
 
 #[test]
