@@ -228,43 +228,14 @@ pub fn eq<let N: u32, let BITS: u32>(lhs: &[u128; N], rhs: &[u128; N]) -> bool {
     *lhs == *rhs
 }
 
-/// Validate that `val` is not equal to zero when interpreted as an integer.
-///
-/// This enforces that at least one limb of `val` is non-zero.
-///
-/// ## Assumptions
-/// * Each limb of `val` is range-constrained to be a 120-bit value:
-///   `0 <= val[i] < 2^120`.
-/// * For our concrete fields and limb counts we have `N * 2^120 < p`,
-///   so the sum of all limbs fits strictly inside the field modulus.
-///
-/// ## Completeness
-/// If `val` is non-zero as an integer, then at least one limb is non-zero,
-/// so the integer sum of the limbs satisfies `0 < limb_sum < p`. In this
-/// case `limb_sum != 0` in the `Field`, and the assertion passes.
-///
-/// ## Soundness
-/// If all limbs of `val` are zero, then `limb_sum` is zero as an integer
-/// and as a field element, so the assertion fails. A witness representing
-/// the zero integer can never satisfy this check.
+/// Check whether a `BigInt` value is zero, i.e. all of its limbs are zero.
 ///
 /// ## Note
-/// This is slightly cheaper than doing `val != [0; N]`, as we avoid
-/// creating per-limb boolean equalities and chaining them with `and`s.
-pub fn assert_is_not_zero_integer<let N: u32>(val: &[u128; N]) {
-    assert(!is_zero_integer(val), "assert_is_not_zero_integer fail");
-}
-
-/// Check whether `val` is the zero `BigInt` in the integer sense.
-///
-/// This returns `true` iff all limbs of `val` are zero.
-///
-/// See `assert_is_not_zero_integer` for the underlying assumptions.
-///
-/// ## Note
-/// This is slightly cheaper than testing `val == [0; N]`, as we avoid
-/// creating per-limb boolean equalities and chaining them with `and`s.
-pub fn is_zero_integer<let N: u32>(val: &[u128; N]) -> bool {
+/// This sums the limbs instead of testing `val == [0; N]`, which avoids creating per-limb boolean
+/// equalities and chaining them with `and`s. As every limb is a `u128`, the sum is below
+/// `N * 2^{128}`, which is far smaller than the circuit field modulus `p`, so the sum is zero in
+/// `Field` exactly when every limb is zero. This holds even if `val` is not normalised.
+pub fn is_zero<let N: u32>(val: &[u128; N]) -> bool {
     let mut limb_sum: Field = 0;
     for i in 0..N {
         limb_sum += val[i].into();
@@ -272,14 +243,11 @@ pub fn is_zero_integer<let N: u32>(val: &[u128; N]) -> bool {
     limb_sum == 0
 }
 
-/// Validate that a `BigInt` value is not zero.
-pub fn assert_is_not_zero<let N: u32, let BITS: u32>(val: &[u128; N]) {
-    assert_is_not_zero_integer(val);
-}
-
-/// Check whether a `BigInt` value is zero.
-pub fn is_zero<let N: u32, let BITS: u32>(val: &[u128; N]) -> bool {
-    is_zero_integer(val)
+/// Validate that a `BigInt` value is not zero, i.e. at least one of its limbs is non-zero.
+///
+/// See `is_zero`.
+pub fn assert_is_not_zero<let N: u32>(val: &[u128; N]) {
+    assert(!is_zero(val), "assert_is_not_zero fail");
 }
 
 /// Validate a `BigInt` instance is correctly range constrained to contain no more than `BITS` bits
@@ -328,7 +296,7 @@ pub fn validate_in_range<let N: u32, let BITS: u32>(limbs: &[u128; N]) {
 /// And won't satisfy the range constraint, since all the limbs are < 2^120
 ///
 /// ## Note
-/// `assert_is_not_zero_integer(result)` is crucial. Without it, we could always provide
+/// `assert_is_not_zero(result)` is crucial. Without it, we could always provide
 /// two identical inputs `x`, `x` and set `borrow_flags = [false; N]`,
 /// which would satisfy the limb constraints.
 pub(crate) fn validate_gt<let N: u32, let BITS: u32>(lhs: &[u128; N], rhs: &[u128; N]) {
@@ -341,7 +309,7 @@ pub(crate) fn validate_gt<let N: u32, let BITS: u32>(lhs: &[u128; N], rhs: &[u12
     let result: [u128; N] = assert_sub_no_overflow::<N, BITS>(lhs, rhs, &borrow_flags);
 
     // Constrain it to be strict inequality
-    assert_is_not_zero_integer(&result);
+    assert_is_not_zero(&result);
 }
 
 /// Compute the result of lhs - rhs given borrow flags and validate it
@@ -512,13 +480,6 @@ pub fn mul<let N: u32, let BITS: u32>(lhs: [u128; N], rhs: [u128; N]) -> [u128; 
         validate_mul_add_expression::<N, BITS>(&lhs, &rhs, &[0; N], &result);
     }
     result
-}
-
-/// Square a `BigInt` value, failing if the result overflows `2^BITS`.
-///
-/// See `mul`.
-pub fn sqr<let N: u32, let BITS: u32>(val: [u128; N]) -> [u128; N] {
-    mul::<N, BITS>(val, val)
 }
 
 /// Compute the `BigInt` integer division with remainder

@@ -108,13 +108,6 @@ pub unconstrained fn __mul<let N: u32, let BITS: u32>(
     result
 }
 
-/// Squares a `BigInt` value (unconstrained).
-///
-/// Fails if the result overflows `2^BITS`.
-pub unconstrained fn __sqr<let N: u32, let BITS: u32>(val: &[u128; N]) -> [u128; N] {
-    __mul::<N, BITS>(val, val)
-}
-
 /// Exponentiation via square-and-multiply, MSB-first (unconstrained).
 ///
 /// Computes `x^e`, failing if the result overflows `2^BITS`.
@@ -132,7 +125,7 @@ pub unconstrained fn __pow<let N: u32, let BITS: u32>(
     if !__is_zero(exponent) {
         let msb: u32 = __get_msb(exponent);
         for i in 0..msb + 1 {
-            accumulator = __sqr::<N, BITS>(&accumulator);
+            accumulator = __mul::<N, BITS>(&accumulator, &accumulator);
             if __get_bit(exponent, msb - i) {
                 accumulator = __mul::<N, BITS>(&accumulator, val);
             }

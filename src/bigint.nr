@@ -40,16 +40,6 @@ pub trait BigInt: Add + Sub + Mul + Div + Eq {
     /// Bit width of this BigInt.
     let BITS: u32;
 
-    /// Returns the number of limbs used to represent this BigInt.
-    ///
-    /// Note: Takes a dummy `Self` parameter for trait method resolution.
-    fn num_limbs(_: Self) -> u32;
-
-    /// Creates a new BigInt with value 0.
-    ///
-    /// Equivalent to `zero()`.
-    fn new() -> Self;
-
     /// Returns the additive identity (0).
     fn zero() -> Self;
 
@@ -171,14 +161,6 @@ pub trait BigInt: Add + Sub + Mul + Div + Eq {
     /// No constraints are generated. Constrain the result using `evaluate_quadratic_expression`.
     unconstrained fn __mul(&self, other: &Self) -> Self;
 
-    /// Unconstrained squaring: computes `self * self`.
-    ///
-    /// Fails if the result overflows `2^BITS`.
-    ///
-    /// # Safety
-    /// No constraints are generated. Constrain the result using `evaluate_quadratic_expression`.
-    unconstrained fn __sqr(&self) -> Self;
-
     /// Unconstrained unsigned integer division: computes `floor(self / other)`.
     ///
     /// # Requirements
@@ -242,12 +224,6 @@ pub trait BigInt: Add + Sub + Mul + Div + Eq {
     /// Range constraints are deduplicated per value, so calling this multiple times on the same
     /// BigInt does not add duplicate constraints.
     fn validate_in_range(&self);
-
-    /// Constrained squaring: computes `self * self`, failing if the result overflows `2^BITS`.
-    ///
-    /// # Performance Note
-    /// For multiple operations, prefer using `__sqr()` followed by `evaluate_quadratic_expression`.
-    fn sqr(&self) -> Self;
 
     /// Constrained integer division with remainder.
     ///
@@ -333,14 +309,6 @@ pub comptime fn derive_bigint(strukt: TypeDefinition, BITS: u32) -> Quoted {
             let N: u32 = $N; 
             let BITS: u32 = $BITS;
             
-            fn num_limbs(_: Self) -> u32 {
-                $N
-            }
-
-            fn new() -> Self {
-                Self {limbs: [0; $N]}
-            }
-
             fn from_limbs(limbs: [u128; $N]) -> Self {
                 let res = Self { limbs };
                 res.validate_in_range();
@@ -426,10 +394,6 @@ pub comptime fn derive_bigint(strukt: TypeDefinition, BITS: u32) -> Quoted {
                 Self {limbs: $crate::internal::__mul::<$N, $BITS>(&self.get_limbs(), &other.get_limbs())}
             }
 
-            unconstrained fn __sqr(&self) -> Self {
-                Self {limbs: $crate::internal::__sqr::<$N, $BITS>(&self.get_limbs()) }
-            }
-
             unconstrained fn __div(&self, divisor: &Self) -> Self {
                 Self { limbs: $crate::internal::__udiv_mod(&self.get_limbs(), &divisor.get_limbs()).0 }
             }
@@ -457,10 +421,6 @@ pub comptime fn derive_bigint(strukt: TypeDefinition, BITS: u32) -> Quoted {
                 $crate::internal::validate_in_range::<$N, $BITS>(&limbs);
             }
 
-            fn sqr(&self) -> Self {
-                Self { limbs: $crate::internal::sqr::<$N, $BITS>(self.get_limbs()) }
-            }
-
             fn udiv_mod(&self, divisor: &Self) -> (Self, Self) {
                 let self_limbs = self.get_limbs();
                 let divisor_limbs = divisor.get_limbs();
@@ -476,12 +436,12 @@ pub comptime fn derive_bigint(strukt: TypeDefinition, BITS: u32) -> Quoted {
 
             fn is_zero(&self) -> bool {
                 let limbs = self.get_limbs();
-                $crate::internal::is_zero::<$N, $BITS>(&limbs)
+                $crate::internal::is_zero(&limbs)
             }
 
             fn assert_is_not_zero(&self) {
                 let limbs = self.get_limbs();
-                $crate::internal::assert_is_not_zero::<$N, $BITS>(&limbs);
+                $crate::internal::assert_is_not_zero(&limbs);
             }
 
         }

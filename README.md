@@ -88,18 +88,17 @@ The overloaded operators are constrained:
 
 Additional constrained methods:
 
-- `sqr`
 - `udiv_mod`, `umod`: integer division with remainder, and remainder only
 
 ### Unconstrained arithmetic
 
-Every arithmetic operation has an unconstrained counterpart prefixed with `__`: `__add`, `__sub`, `__mul`, `__sqr`, `__div`, `__udiv_mod`, `__pow`, `__eq`, `__is_zero`.
+Every arithmetic operation has an unconstrained counterpart prefixed with `__`: `__add`, `__sub`, `__mul`, `__div`, `__udiv_mod`, `__pow`, `__eq`, `__is_zero`.
 
 These generate no constraints. Their results must be constrained, ideally with `evaluate_quadratic_expression` (see below).
 
 ### Constructors and limb access
 
-- `new`, `zero`, `one`
+- `zero`, `one`
 - `from_limbs` (range-checks the limbs), `from_limbs_unsafe` (does not; the result must be range-checked with `validate_in_range` before use)
 - `get_limbs`, `get_limb(idx)`
 - `set_limb(idx, value)` (range-checks the new value), `set_limb_unsafe(idx, value)` (does not)

@@ -156,7 +156,7 @@ fn test_validate_gt_regression_U256() {
 // therefore sufficient to exercise the check.
 #[test(should_fail_with = "product limbs may exceed 2^246")]
 fn test_evaluate_quadratic_expression_overflow_num_products_U256() {
-    let zero: U256 = BigInt::new();
+    let zero: U256 = BigInt::zero();
     // NUM_PRODUCTS=33, LHS_N=1, RHS_N=1
     // Fails the (N-2)th limb check: 33 * 2 * (2^120-1)^2 > 2^246
     evaluate_quadratic_expression(
@@ -171,7 +171,7 @@ fn test_evaluate_quadratic_expression_overflow_num_products_U256() {
 
 #[test(should_fail_with = "product limbs may exceed 2^246")]
 fn test_evaluate_quadratic_expression_overflow_num_products_U256_2() {
-    let zero: U256 = BigInt::new();
+    let zero: U256 = BigInt::zero();
     // NUM_PRODUCTS=1, LHS_N=6, RHS_N=6
     // Fails the (N-2)th limb check: 1 * 6 * 6 * 2 * (2^120-1)^2 > 2^246
     evaluate_quadratic_expression([[zero; 6]], [[false; 6]], [[zero; 6]], [[false; 6]], [], []);
@@ -232,7 +232,7 @@ fn test_bits_U256() {
 
 #[test]
 fn test_num_limbs_U256() {
-    assert_eq(U256::zero().num_limbs(), 3)
+    assert_eq(<U256 as BigInt>::N, 3)
 }
 
 #[test]
@@ -736,7 +736,7 @@ fn test_do_nothing() {
 }
 
 // Derive a value from `seed` which only uses the lower `(N - 1) / 2` limbs, so that the
-// identities in `test_add`, `test_mul` and `test_sqr` (e.g. `(a + b)^2`) do not overflow.
+// identities in `test_add` and `test_mul` (e.g. `(a + b)^2`) do not overflow.
 fn small_from_seed<BN, let SeedBytes: u32>(seed: [u8; SeedBytes]) -> BN
 where
     BN: BigInt,
@@ -849,17 +849,6 @@ where
     assert(c.eq(d));
 }
 
-fn test_sqr<let N: u32, BN>()
-where
-    BN: BigInt,
-{
-    let a: BN = small_from_seed([1, 2, 3, 4]);
-    let b: BN = small_from_seed([4, 5, 6, 7]);
-    let c: BN = (a + b).sqr();
-    let d: BN = a.sqr() + b.sqr() + (a * b) + (b * a);
-    assert(c == d);
-}
-
 #[test]
 fn test_mul_U256_with_one() {
     let a: U256 = U256::from_limbs([TWO_POW_120 - 2, TWO_POW_120 - 1, 0xffff]);
@@ -951,11 +940,6 @@ fn test_mul_U256() {
 }
 
 #[test]
-fn test_sqr_U256() {
-    test_sqr::<3, U256>();
-}
-
-#[test]
 fn test_div_udiv_mod_equality_U256() {
     test_div_udiv_mod_equality::<3, U256>();
 }
@@ -990,11 +974,6 @@ fn test_add_U2048() {
 #[test]
 fn test_mul_U2048() {
     test_mul::<18, U2048>();
-}
-
-#[test]
-fn test_sqr_U2048() {
-    test_sqr::<18, U2048>();
 }
 
 #[test]
@@ -1044,12 +1023,6 @@ fn test_mul_U256_overflow() {
 unconstrained fn test_unconstrained_mul_U256_overflow() {
     let a: U256 = U256::from_limbs([0, 0x100, 0]);
     let _: U256 = a.__mul(&a);
-}
-
-#[test(should_fail_with = "attempt to multiply with overflow")]
-fn test_sqr_U256_overflow() {
-    let a: U256 = U256::from_limbs([0, 0x100, 0]);
-    let _: U256 = a.sqr();
 }
 
 // Even if the prover supplies the wrapped product, the multiplication relation is rejected
