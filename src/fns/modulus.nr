@@ -9,8 +9,8 @@ pub fn get_modulus<let N: u32, let BITS: u32>() -> [u128; N] {
     result
 }
 
-/// Returns `2 * modulus` in a redundant limb representation, used when performing negations
-/// and subtractions.
+/// Returns `2 * modulus` in a redundant limb representation, used for the negated terms of
+/// quadratic expressions.
 ///
 /// This is _not_ the canonical limb representation of `2 * modulus`: each limb except the most
 /// significant one borrows `2^120` from the next, so that limb-wise subtractions

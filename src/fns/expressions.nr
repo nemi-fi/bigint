@@ -642,51 +642,13 @@ pub(crate) fn assert_product_limbs_fit_in_246_bits<let N: u32, let BITS: u32, le
 ///     The middle limb will contain a value that will definitely overflow the 2^{246} bound.
 ///
 /// ## Soundness
-/// This function is conditionally sound: it enforces that the degree-2 relation
-/// holds modulo `MOD`, but it does not, by itself, enforce that any particular
-/// term (for example a result `z`) is a *canonical* representative in
-/// `[0, MOD)`.
-///
-/// In other words, if the surrounding relation is invariant under adding a
-/// multiple of `MOD` to one of its terms, then a dishonest prover can exploit
-/// this. For example, consider a multiplication relation:
+/// This function enforces that the degree-2 relation holds modulo `MOD = 2^BITS`. Every term is
+/// range-checked to `BITS` bits, so each term is the unique representative of its value in
+/// `[0, MOD)`. In particular, for a multiplication relation
 ///
 ///     x * y - z = 0 (mod MOD)
 ///
-/// Internally we encode this as:
-///
-///     x * y + 2 * MOD - z - quotient * MOD = 0
-///
-/// which is equivalent to:
-///
-///     x * y - z = (quotient - 2) * MOD
-///
-/// Suppose the honest witness uses some `z` satisfying
-/// `0 <= z < MOD` and some `quotient`. If the `BigInt` encoding allows
-/// `z' = z + MOD` (i.e. `z' < 2^{BITS}` still holds), then a dishonest
-/// prover can instead provide:
-///
-///     z' = z + MOD
-///     quotient' = quotient - 1
-///
-/// and still satisfy:
-///
-///     x * y + 2 * MOD - z' - quotient' * MOD = 0
-///
-/// even though `z'` is no longer the canonical representative of `x * y mod MOD`.
-///
-/// The same consideration applies to almost every constrained `BigInt` relation:
-/// whenever a value participates *only* through a modular equality, and no
-/// separate range constraint is imposed on that value, the prover is free to
-/// shift it by an extra `MOD` as long as the resulting limb
-/// encoding still satisfies its bit-bounds. This is inherent in working with
-/// modular constraints; the responsibility for enforcing canonical
-/// representatives lies with the caller when it is required.
-///
-/// This is the same "extra modulus" phenomenon as in the `add`/`sub` functions:
-/// the constraints are sound for modular arithmetic, but any caller that
-/// requires canonical outputs in `[0, MOD)` must additionally enforce a
-/// range check (for example via `validate_canonical`) on the relevant terms.
+/// a prover cannot substitute `z' = z + MOD` for `z`, as `z' >= 2^BITS` fails the range check.
 pub(crate) fn evaluate_quadratic_expression<let N: u32, let BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
     lhs_terms: &[[[u128; N]; LHS_N]; NUM_PRODUCTS],
     lhs_flags: &[[bool; LHS_N]; NUM_PRODUCTS],

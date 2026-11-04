@@ -1,5 +1,5 @@
 use crate::fns::constrained_ops::limbs_to_field;
-use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::ops::{Add, Div, Mul, Sub};
 
 /// The core trait for fixed-width unsigned integers.
 ///
@@ -32,16 +32,11 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 ///     a * b
 /// }
 /// ```
-pub trait BigInt: Neg + Add + Sub + Mul + Div + Eq {
+pub trait BigInt: Add + Sub + Mul + Div + Eq {
     /// Number of 120-bit limbs used to represent this BigInt.
     let N: u32;
     /// Bit width of this BigInt.
     let BITS: u32;
-
-    /// Returns the bit width of this BigInt.
-    ///
-    /// Note: Takes a dummy `Self` parameter for trait method resolution.
-    fn bits(_: Self) -> u32;
 
     /// Returns the number of limbs used to represent this BigInt.
     ///
@@ -149,12 +144,6 @@ pub trait BigInt: Neg + Add + Sub + Mul + Div + Eq {
     /// # Safety
     /// No constraints are generated. Use `is_zero()` for constrained check.
     unconstrained fn __is_zero(&self) -> bool;
-
-    /// Unconstrained negation: computes `-self (mod 2^BITS)`.
-    ///
-    /// # Safety
-    /// No constraints are generated. Constrain the result using `evaluate_quadratic_expression`.
-    unconstrained fn __neg(&self) -> Self;
 
     /// Unconstrained addition: computes `self + other (mod 2^BITS)`.
     ///
@@ -273,7 +262,6 @@ pub trait BigInt: Neg + Add + Sub + Mul + Div + Eq {
     fn umod(&self, divisor: &Self) -> Self;
 }
 
-// We need macros that implement the BigInt, Default, From, Neg, Add, Sub, Mul, Div, Eq, Ord traits for each bigint type
 /// Returns `N` for a struct whose only field is `limbs: [u128; N]`.
 comptime fn num_limbs_of(strukt: TypeDefinition) -> u32 {
     let fields = strukt.fields_as_written();
@@ -332,10 +320,6 @@ pub comptime fn derive_bigint(strukt: TypeDefinition, BITS: u32) -> Quoted {
         impl $crate::BigInt for $typ {
             let N: u32 = $N; 
             let BITS: u32 = $BITS;
-            
-            fn bits(_: Self) -> u32 {
-                $BITS
-            }
             
             fn num_limbs(_: Self) -> u32 {
                 $N
@@ -416,10 +400,6 @@ pub comptime fn derive_bigint(strukt: TypeDefinition, BITS: u32) -> Quoted {
 
             unconstrained fn __is_zero(&self) -> bool {
                 $crate::internal::__is_zero(&self.get_limbs())
-            }
-
-            unconstrained fn __neg(&self) -> Self {
-                Self {limbs: $crate::internal::__neg(&$crate::internal::get_modulus::<$N, $BITS>(), &self.get_limbs())}
             }
 
             unconstrained fn __add(&self, other: &Self) -> Self {
@@ -507,12 +487,6 @@ pub comptime fn derive_bigint(strukt: TypeDefinition, BITS: u32) -> Quoted {
             }
         }
 
-        impl std::ops::Neg for $typ {
-            fn neg(self) -> Self {
-                $typ { limbs: $crate::internal::neg::<$N, $BITS>(&self.limbs) }
-            }
-        }
-
         impl std::ops::Add for $typ {
             fn add(self, other: Self) -> Self {
                 $typ { limbs: $crate::internal::add::<$N, $BITS>(&self.limbs, &other.limbs) }
@@ -552,27 +526,6 @@ pub comptime fn derive_bigint(strukt: TypeDefinition, BITS: u32) -> Quoted {
             }
         }
 
-    }
-}
-
-/// Conditionally selects between two BigInt values.
-///
-/// Returns `lhs` if `predicate` is `true`, otherwise returns `rhs`.
-///
-/// # Example
-/// ```
-/// let result = conditional_select(a, b, condition);
-/// // Equivalent to: if condition { a } else { b }
-/// ```
-///
-/// # Note
-/// This is useful for constant-time selection where you want to avoid branching
-/// on secret values in constrained code.
-pub fn conditional_select<T: BigInt>(lhs: T, rhs: T, predicate: bool) -> T {
-    if predicate {
-        lhs
-    } else {
-        rhs
     }
 }
 

@@ -5,7 +5,6 @@ comptime fn make_bench(m: Module, typ_path: Quoted) -> Quoted {
 
     let add_bench_name = f"add_{module_name}".quoted_contents();
 
-    let neg_bench_name = f"neg_{module_name}".quoted_contents();
     let sub_bench_name = f"sub_{module_name}".quoted_contents();
 
     let mul_bench_name = f"mul_{module_name}".quoted_contents();
@@ -52,11 +51,6 @@ comptime fn make_bench(m: Module, typ_path: Quoted) -> Quoted {
         #[export]
         fn $add_bench_name(a: $typ, b: $typ) -> $typ {
             a + b
-        }
-
-        #[export]
-        fn $neg_bench_name(a: $typ) -> $typ {
-            -a
         }
 
         #[export]

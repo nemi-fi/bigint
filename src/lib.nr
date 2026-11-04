@@ -31,7 +31,6 @@ pub mod internal {
     pub use crate::fns::constrained_ops::is_zero;
     pub use crate::fns::constrained_ops::is_zero_integer;
     pub use crate::fns::constrained_ops::mul;
-    pub use crate::fns::constrained_ops::neg;
     pub use crate::fns::constrained_ops::sqr;
     pub use crate::fns::constrained_ops::sub;
     pub use crate::fns::constrained_ops::udiv_mod;
@@ -44,7 +43,6 @@ pub mod internal {
     pub use crate::fns::unconstrained_ops::__eq;
     pub use crate::fns::unconstrained_ops::__is_zero;
     pub use crate::fns::unconstrained_ops::__mul;
-    pub use crate::fns::unconstrained_ops::__neg;
     pub use crate::fns::unconstrained_ops::__pow;
     pub use crate::fns::unconstrained_ops::__sqr;
     pub use crate::fns::unconstrained_ops::__sub;
@@ -59,9 +57,7 @@ pub mod internal {
 
 // Re-export the main structs so that users don't have to specify the paths
 pub use bigint::BigInt;
-pub use bigint::{
-    compute_quadratic_expression, conditional_select, evaluate_quadratic_expression, to_field,
-};
+pub use bigint::{compute_quadratic_expression, evaluate_quadratic_expression, to_field};
 pub use bigint::derive_bigint;
 
 // Re-export the pre-defined bigint types, for easier access:

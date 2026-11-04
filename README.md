@@ -81,7 +81,6 @@ At least two limbs are required. Single-limb types are not supported.
 The overloaded operators are constrained:
 
 - `+`, `-`, `*`: arithmetic modulo $2^X$ (wrapping)
-- `-x` (`neg`): $2^X - x$ (wrapping)
 - `/`: integer division (rounding down)
 - `==`: equality
 - `<`, `<=`, `>`, `>=`: integer comparison
@@ -93,7 +92,7 @@ Additional constrained methods:
 
 ### Unconstrained arithmetic
 
-Every arithmetic operation has an unconstrained counterpart prefixed with `__`: `__neg`, `__add`, `__sub`, `__mul`, `__sqr`, `__div`, `__udiv_mod`, `__pow`, `__eq`, `__is_zero`.
+Every arithmetic operation has an unconstrained counterpart prefixed with `__`: `__add`, `__sub`, `__mul`, `__sqr`, `__div`, `__udiv_mod`, `__pow`, `__eq`, `__is_zero`.
 
 These generate no constraints. Their results must be constrained, ideally with `evaluate_quadratic_expression` (see below).
 
@@ -116,7 +115,6 @@ These generate no constraints. Their results must be constrained, ideally with `
 - `is_zero`, `assert_is_not_zero`: zero checks
 - `assert_is_not_equal`: cheaper than `assert(a != b)`
 - `validate_in_range`: each limb is at most 120 bits and the value is less than $2^X$
-- `conditional_select(lhs, rhs, predicate)`: returns `lhs` if `predicate` is true, otherwise `rhs`
 
 ### `evaluate_quadratic_expression`
 

@@ -190,7 +190,7 @@ fn test_evaluate_quadratic_expression_many_negated_terms() {
 
 #[test]
 fn test_bits_U256() {
-    assert_eq(U256::zero().bits(), 256)
+    assert_eq(<U256 as BigInt>::BITS, 256)
 }
 
 #[test]
@@ -659,7 +659,11 @@ fn test_cmp_U256_fuzz(seed: [u8; 5]) {
     let mut a: U256 = U256::derive_from_seed(seed);
     let modulus_sub_1_div_2: U256 = U256::from_limbs(U256_MAX) / U256::from(2);
 
-    a = if a > modulus_sub_1_div_2 { -a } else { a };
+    a = if a > modulus_sub_1_div_2 {
+        U256::from_limbs(U256_MAX) - a
+    } else {
+        a
+    };
     assert(a < modulus_sub_1_div_2);
 }
 
@@ -692,26 +696,6 @@ fn test_do_nothing() {
     let e: U256 = a + b;
     assert(c == d.get_limbs());
     assert(c == e.get_limbs());
-}
-
-fn test_neg<let N: u32, BN>()
-where
-    BN: BigInt,
-{
-    let a: BN = BN::derive_from_seed([1, 2, 3, 4]);
-    let b: BN = -a;
-    let c: BN = -b;
-    assert(a == c);
-}
-
-// -0 == 0
-fn test_neg_zero<let N: u32, BN>()
-where
-    BN: BigInt,
-{
-    let zero: BN = BN::zero();
-    let a = -zero;
-    assert(a == zero);
 }
 
 fn test_add<let N: u32, BN>()
@@ -876,16 +860,6 @@ fn test_assert_is_not_equal_fail_U256() {
 }
 
 #[test]
-fn test_neg_U256() {
-    test_neg::<3, U256>();
-}
-
-#[test]
-fn test_neg_zero_U256() {
-    test_neg_zero::<3, U256>();
-}
-
-#[test]
 fn test_add_U256() {
     test_add::<3, U256>();
 }
@@ -925,16 +899,6 @@ fn test_assert_is_not_equal_U2048() {
 #[test(should_fail_with = "assert_is_not_equal fail")]
 fn test_assert_is_not_equal_fail_U2048() {
     test_assert_is_not_equal_fail::<18, U2048>();
-}
-
-#[test]
-fn test_neg_U2048() {
-    test_neg::<18, U2048>();
-}
-
-#[test]
-fn test_neg_zero_U2048() {
-    test_neg_zero::<18, U2048>();
 }
 
 #[test]
@@ -1011,7 +975,7 @@ fn test_expressions() {
     // Safety: test code
     let uv: U256 = unsafe { uu.__mul(&vv) };
     // Safety: test code
-    let y: U256 = unsafe { (uv.__add(&wx)).__neg() };
+    let y: U256 = unsafe { U256::zero().__sub(&uv.__add(&wx)) };
     // Safety: test code
     let z: U256 = unsafe { uv.__add(&wx) };
 
