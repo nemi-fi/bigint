@@ -67,9 +67,7 @@ pub mod internal {
 
 // Re-export the main structs so that users don't have to specify the paths
 pub use bigint::BigInt;
-pub use bigint::{
-    compute_quadratic_expression, conditional_select, evaluate_quadratic_expression, to_field,
-};
+pub use bigint::{compute_quadratic_expression, evaluate_quadratic_expression, to_field};
 pub use bigint::derive_bigint;
 
 // Re-export the pre-defined bigint types, for easier access:

@@ -119,7 +119,6 @@ These generate no constraints. Their results must be constrained, ideally with `
 - `assert_is_not_equal`: cheaper than `assert(a != b)`
 - `validate_in_range`: each limb is at most 120 bits and the value is at most `MOD_BITS` bits
 - `validate_canonical`: the value is canonical, i.e. less than $2^X$. This is a stronger check than `validate_in_range`.
-- `conditional_select(lhs, rhs, predicate)`: returns `lhs` if `predicate` is true, otherwise `rhs`
 
 ### `evaluate_quadratic_expression`
 
