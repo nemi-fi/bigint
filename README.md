@@ -81,7 +81,6 @@ At least two limbs are required. Single-limb types are not supported.
 The overloaded operators are constrained:
 
 - `+`, `-`, `*`: arithmetic modulo $2^X$ (wrapping)
-- `-x` (`neg`): $2^X - x$ (wrapping)
 - `/`: integer division (rounding down)
 - `==`: equality
 - `<`, `<=`, `>`, `>=`: integer comparison. Both operands must be canonical (see `validate_canonical` below).
@@ -94,7 +93,7 @@ Additional constrained methods:
 
 ### Unconstrained arithmetic
 
-Every arithmetic operation has an unconstrained counterpart prefixed with `__`: `__neg`, `__add`, `__sub`, `__mul`, `__sqr`, `__div`, `__udiv_mod`, `__pow`, `__eq`, `__is_zero`.
+Every arithmetic operation has an unconstrained counterpart prefixed with `__`: `__add`, `__sub`, `__mul`, `__sqr`, `__div`, `__udiv_mod`, `__pow`, `__eq`, `__is_zero`.
 
 These generate no constraints. Their results must be constrained, ideally with `evaluate_quadratic_expression` (see below).
 

@@ -1,5 +1,5 @@
 use crate::fns::constrained_ops::limbs_to_field;
-use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::ops::{Add, Div, Mul, Sub};
 
 /// The core trait for arbitrary-precision modular arithmetic.
 ///
@@ -32,7 +32,7 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 ///     a * b
 /// }
 /// ```
-pub trait BigInt: Neg + Add + Sub + Mul + Div + Eq {
+pub trait BigInt: Add + Sub + Mul + Div + Eq {
     /// Number of 120-bit limbs used to represent this BigInt.
     let N: u32;
     /// Number of bits in the modulus.
@@ -193,12 +193,6 @@ pub trait BigInt: Neg + Add + Sub + Mul + Div + Eq {
     /// # Safety
     /// No constraints are generated. Use `is_zero()` for constrained check.
     unconstrained fn __is_zero(&self) -> bool;
-
-    /// Unconstrained negation: computes `-self (mod MOD)`.
-    ///
-    /// # Safety
-    /// No constraints are generated. Constrain the result using `evaluate_quadratic_expression`.
-    unconstrained fn __neg(&self) -> Self;
 
     /// Unconstrained addition: computes `self + other (mod MOD)`.
     ///
@@ -370,7 +364,7 @@ pub trait BigInt: Neg + Add + Sub + Mul + Div + Eq {
     fn umod_unsafe(&self, divisor: &Self) -> Self;
 }
 
-// We need macros that implement the BigInt, Default, From, Neg, Add, Sub, Mul, Div, Eq, Ord traits for each bigint type
+// We need macros that implement the BigInt, Default, From, Add, Sub, Mul, Div, Eq, Ord traits for each bigint type
 pub comptime fn derive_bigint(strukt: TypeDefinition, N: u32, MOD_BITS: u32) -> Quoted {
     assert(N >= 2, "derive_bigint: at least two limbs are required");
     assert(
@@ -484,10 +478,6 @@ pub comptime fn derive_bigint(strukt: TypeDefinition, N: u32, MOD_BITS: u32) -> 
 
             unconstrained fn __is_zero(&self) -> bool {
                 $crate::internal::__is_zero(&self.get_limbs())
-            }
-
-            unconstrained fn __neg(&self) -> Self {
-                Self {limbs: $crate::internal::__neg(&$crate::internal::get_modulus::<$N, $MOD_BITS>(), &self.get_limbs())}
             }
 
             unconstrained fn __add(&self, other: &Self) -> Self {
@@ -605,12 +595,6 @@ pub comptime fn derive_bigint(strukt: TypeDefinition, N: u32, MOD_BITS: u32) -> 
         impl std::convert::From<Field> for $typ {
             fn from(input: Field) -> Self {
                 $typ { limbs: $crate::internal::from_field::<$N, $MOD_BITS>(input) }
-            }
-        }
-
-        impl std::ops::Neg for $typ {
-            fn neg(self) -> Self {
-                $typ { limbs: $crate::internal::neg::<$N, $MOD_BITS>(&self.limbs) }
             }
         }
 

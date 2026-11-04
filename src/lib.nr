@@ -32,7 +32,6 @@ pub mod internal {
     pub use crate::fns::constrained_ops::is_zero;
     pub use crate::fns::constrained_ops::is_zero_integer;
     pub use crate::fns::constrained_ops::mul;
-    pub use crate::fns::constrained_ops::neg;
     pub use crate::fns::constrained_ops::sqr;
     pub use crate::fns::constrained_ops::sub;
     pub use crate::fns::constrained_ops::udiv_mod;
@@ -48,7 +47,6 @@ pub mod internal {
     pub use crate::fns::unconstrained_ops::__eq;
     pub use crate::fns::unconstrained_ops::__is_zero;
     pub use crate::fns::unconstrained_ops::__mul;
-    pub use crate::fns::unconstrained_ops::__neg;
     pub use crate::fns::unconstrained_ops::__pow;
     pub use crate::fns::unconstrained_ops::__sqr;
     pub use crate::fns::unconstrained_ops::__sub;
