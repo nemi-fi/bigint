@@ -310,8 +310,8 @@ comptime fn num_limbs_of(strukt: TypeDefinition) -> u32 {
 /// }
 /// ```
 ///
-/// At least two limbs are required, and the top limb must hold between 1 and 118 bits, so widths
-/// with `BITS % 120` equal to `0` or `119` are not supported.
+/// Between 2 and 129 limbs are supported, and the top limb must hold between 1 and 118 bits, so
+/// widths with `BITS % 120` equal to `0` or `119` are not supported.
 pub comptime fn derive_bigint(strukt: TypeDefinition, BITS: u32) -> Quoted {
     let N: u32 = num_limbs_of(strukt);
     let expected_limbs: u32 = (BITS + 119) / 120;
@@ -320,6 +320,8 @@ pub comptime fn derive_bigint(strukt: TypeDefinition, BITS: u32) -> Quoted {
         f"derive_bigint: a {BITS}-bit integer needs {expected_limbs} limbs, but `limbs` has {N}",
     );
     assert(N >= 2, "derive_bigint: at least two limbs are required");
+    // Multiplication of wider types would require carries of more than 127 bits, see `carry_bits`
+    assert(N <= 129, "derive_bigint: at most 129 limbs are supported");
     let top_limb_bits: u32 = BITS - (N - 1) * 120;
     assert(
         top_limb_bits <= 118,

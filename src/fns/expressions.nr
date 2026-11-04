@@ -1,10 +1,25 @@
 use crate::utils::split_bits;
 
-use crate::constants::{TWO_POW_120, TWO_POW_126, TWO_POW_246};
+use crate::constants::TWO_POW_120;
 
 use crate::fns::constrained_ops::validate_in_range;
 use crate::fns::unconstrained_helpers::__helper_sub;
 use crate::fns::unconstrained_ops::__gte;
+
+/// The number of bits of each carry in `validate_expression_is_zero`, for `BigInt`s with `N` limbs.
+///
+/// Each limb of an expression is a sum of products of 120-bit limbs, which must be below
+/// `2^{120 + CARRY_BITS}` in absolute value for the borrow encoding to represent it (see
+/// `assert_product_limbs_fit`). 126-bit carries suffice for a single product of `BigInt`s with up
+/// to 65 limbs; wider types use 127-bit carries, which suffice for up to 129 limbs. A 126-bit range
+/// check is cheaper than a 127-bit one in barretenberg, so the smaller bound is used where possible.
+pub(crate) fn carry_bits<let N: u32>() -> u32 {
+    if N <= 65 {
+        126
+    } else {
+        127
+    }
+}
 
 // ------------------------------ UNCONSTRAINED EXPRESSIONS ------------------------------
 
@@ -80,6 +95,9 @@ unconstrained fn __compute_quadratic_expression_parts<let N: u32, let LHS_N: u32
 
 /// Compute the borrow flags for a limb-wise subtraction `lhs - rhs` (unconstrained).
 ///
+/// The numbers below are for 126-bit carries. For `BigInt`s with more than 65 limbs, `2^{246}` and
+/// `2^{126}` (and the 126-bit range check) become `2^{247}` and `2^{127}`; see `carry_bits`.
+///
 /// This helper operates on `N`-limb values where each limb is interpreted as a
 /// 120-bit chunk (base `B = 2^{120}`), but where intermediate limbs may exceed
 /// `2^{120}` due to sums of products.
@@ -104,11 +122,12 @@ unconstrained fn __compute_quadratic_expression_parts<let N: u32, let LHS_N: u32
 unconstrained fn __compute_borrow_flags<let N: u32>(
     mut lhs_limbs: [Field; N],
     rhs_limbs: [Field; N],
+    carry_bits: u32,
 ) -> [bool; N - 1] {
     // compute borrow flags from mulout_p and mulout_n
     let mut borrow_flags: [bool; N - 1] = [false; N - 1];
-    let borrow_shift: Field = TWO_POW_246; // 2^{246}
-    let borrow_carry: Field = TWO_POW_126; // 2^{126} = 2^{246 - 120}
+    let borrow_carry: Field = (2 as Field).pow_32(carry_bits as Field); // 2^{CARRY_BITS}
+    let borrow_shift: Field = borrow_carry * (TWO_POW_120 as Field); // 2^{120 + CARRY_BITS}
     let downshift_120: Field = 1 / (TWO_POW_120 as Field);
 
     // determine whether we need to borrow from more significant limbs.
@@ -162,7 +181,7 @@ unconstrained fn __compute_quadratic_expression_borrow_flags<let N: u32, let LHS
         positive_limbs[i] = positive[i];
         negative_limbs[i] = negative[i];
     }
-    __compute_borrow_flags(positive_limbs, negative_limbs)
+    __compute_borrow_flags(positive_limbs, negative_limbs, carry_bits::<N>())
 }
 
 /// Computes the value of a quadratic expression (unconstrained).
@@ -262,6 +281,9 @@ fn compute_linear_expressions<let N: u32, let LHS_N: u32, let RHS_N: u32, let NU
 }
 
 /// Computes the limbs of `\sum L_i * R_i + A` in-circuit, with prover-provided borrow flags
+/// The numbers below are for 126-bit carries. For `BigInt`s with more than 65 limbs, `2^{246}` and
+/// `2^{126}` (and the 126-bit range check) become `2^{247}` and `2^{127}`; see `carry_bits`.
+///
 /// applied.
 ///
 /// Each limb of the expression is a signed value. To allow `validate_expression_is_zero` to check
@@ -316,10 +338,13 @@ fn compute_quadratic_expression_limbs<let N: u32, let LHS_N: u32, let RHS_N: u32
         expression_limbs[i] += lin_expr[i];
     }
 
-    apply_borrow_flags(expression_limbs, borrow_flags)
+    apply_borrow_flags(expression_limbs, borrow_flags, carry_bits::<N>())
 }
 
 /// Apply a precomputed borrow chain to a limb array.
+///
+/// The numbers below are for 126-bit carries. For `BigInt`s with more than 65 limbs, `2^{246}` and
+/// `2^{126}` (and the 126-bit range check) become `2^{247}` and `2^{127}`; see `carry_bits`.
 ///
 /// Given:
 ///
@@ -365,9 +390,10 @@ fn compute_quadratic_expression_limbs<let N: u32, let LHS_N: u32, let RHS_N: u32
 fn apply_borrow_flags<let N: u32>(
     mut expression_limbs: [Field; N],
     borrow_flags: [bool; N - 1],
+    carry_bits: u32,
 ) -> [Field; N] {
-    let borrow_shift: Field = TWO_POW_246; // 2^{246}
-    let borrow_carry: Field = TWO_POW_126; // 2^{246 - 120} = 2^{126}
+    let borrow_carry: Field = (2 as Field).pow_32(carry_bits as Field); // 2^{CARRY_BITS}
+    let borrow_shift: Field = borrow_carry * (TWO_POW_120 as Field); // 2^{120 + CARRY_BITS}
 
     // Get the product_limbs into the form where each entry is a 246-bit value
     expression_limbs[0] += (borrow_flags[0] as Field) * borrow_shift;
@@ -380,6 +406,9 @@ fn apply_borrow_flags<let N: u32>(
 }
 
 /// Validate that `limbs` represent the integer value `0`
+///
+/// The numbers below are for 126-bit carries. For `BigInt`s with more than 65 limbs, `2^{246}` and
+/// `2^{126}` (and the 126-bit range check) become `2^{247}` and `2^{127}`; see `carry_bits`.
 ///
 /// ## Assumptions
 ///     - `limbs` is an array of `Field` values that was derived arithmetically as
@@ -410,19 +439,27 @@ fn apply_borrow_flags<let N: u32>(
 /// principle go higher (up to roughly `CircuitModulusBits - 121`), but 126 is
 /// the minimal bound consistent with `NUM_PRODUCTS < 64` and is significantly
 /// cheaper than larger bounds for the barretenberg backend.
-fn validate_expression_is_zero<let N: u32>(mut limbs: [Field; N]) {
+fn validate_expression_is_zero<let N: u32>(mut limbs: [Field; N], carry_bits: u32) {
     let hi_shift: Field = TWO_POW_120 as Field;
     let hi_downshift: Field = 1 / hi_shift;
     for i in 0..N - 1 {
         limbs[i] *= hi_downshift;
         std::as_witness(limbs[i]);
-        limbs[i].assert_max_bit_size::<126>(); // N.B. is this sufficient? going beyond 126 costs us 1 gate per limb
+        // `carry_bits` is known at compile time, so only one of these range checks is generated
+        if carry_bits == 126 {
+            limbs[i].assert_max_bit_size::<126>();
+        } else {
+            limbs[i].assert_max_bit_size::<127>();
+        }
         limbs[i + 1] += limbs[i];
     }
     assert(limbs[N - 1] == 0);
 }
 
 /// Completeness check for `evaluate_quadratic_expression`: ensure that each limb
+/// The numbers below are for 126-bit carries. For `BigInt`s with more than 65 limbs, `2^{246}` and
+/// `2^{126}` (and the 126-bit range check) become `2^{247}` and `2^{127}`; see `carry_bits`.
+///
 /// of the convolution product `lhs_linear * rhs_linear` is strictly below `2^{246}`,
 /// so that the 126-bit range check in `validate_expression_is_zero` can succeed for
 /// honest witnesses.
@@ -452,7 +489,7 @@ fn validate_expression_is_zero<let N: u32>(mut limbs: [Field; N]) {
 /// `p` (`~2^{254}`), `Field.lt()` could wrap around and give a false pass. This
 /// requires roughly `NUM_PRODUCTS * LHS_N * RHS_N * (N - 1) > 2^{14}`, which is
 /// unrealistic in practice.
-pub(crate) fn assert_product_limbs_fit_in_246_bits<let N: u32, let BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32>() {
+pub(crate) fn assert_product_limbs_fit<let N: u32, let BITS: u32, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32>() {
     let top_limb_bits: u128 = (BITS - (N - 1) * 120) as u128;
     let max_non_top_limb: Field = (TWO_POW_120 - 1) as Field;
     let max_top_limb: Field = ((1u128 << top_limb_bits) - 1) as Field;
@@ -461,22 +498,26 @@ pub(crate) fn assert_product_limbs_fit_in_246_bits<let N: u32, let BITS: u32, le
     // times, and each pair of linear combinations contributes `LHS_N * RHS_N` sub-products.
     let num_sub_products_per_limb: Field = NUM_PRODUCTS as Field * LHS_N as Field * RHS_N as Field;
 
+    // Each product limb must be below `2^{120 + CARRY_BITS}`, see `carry_bits`
+    let limit_bits: u32 = 120 + carry_bits::<N>();
+    let limit: Field = (2 as Field).pow_32(limit_bits as Field);
+
     // Position `N - 1` has `N` pairs: two mix a top limb with a non-top limb,
     // the remaining `N - 2` are both non-top.
     let n_minus_1: u32 = N - 1;
     let max_limb_at_pos_n_minus_1: Field =
         max_non_top_limb * (2 * max_top_limb + (N - 2) as Field * max_non_top_limb);
     assert(
-        (num_sub_products_per_limb * max_limb_at_pos_n_minus_1).lt(TWO_POW_246),
-        f"product limbs may exceed 2^246 at limb {n_minus_1}",
+        (num_sub_products_per_limb * max_limb_at_pos_n_minus_1).lt(limit),
+        f"product limbs may exceed 2^{limit_bits} at limb {n_minus_1}",
     );
 
     // Position `N - 2` has `N - 1` pairs, all non-top * non-top.
     let n_minus_2: u32 = N - 2;
     let max_limb_at_pos_n_minus_2: Field = (N - 1) as Field * max_non_top_limb * max_non_top_limb;
     assert(
-        (num_sub_products_per_limb * max_limb_at_pos_n_minus_2).lt(TWO_POW_246),
-        f"product limbs may exceed 2^246 at limb {n_minus_2}",
+        (num_sub_products_per_limb * max_limb_at_pos_n_minus_2).lt(limit),
+        f"product limbs may exceed 2^{limit_bits} at limb {n_minus_2}",
     );
 }
 
@@ -539,7 +580,7 @@ pub(crate) fn assert_product_limbs_fit_in_246_bits<let N: u32, let BITS: u32, le
 /// If an honest prover supplies inputs that satisfy the assumptions above and the relation, it
 /// can always find `borrow_flags` such that all constraints are satisfied, provided every limb of
 /// the expression is below `2^{246}` in absolute value. This is enforced at compile time by
-/// `assert_product_limbs_fit_in_246_bits`.
+/// `assert_product_limbs_fit`.
 ///
 /// ## Soundness
 /// `validate_expression_is_zero` constrains the (borrow-adjusted) limbs to encode `0` over the
@@ -553,7 +594,7 @@ pub(crate) fn evaluate_quadratic_expression<let N: u32, let BITS: u32, let LHS_N
     linear_terms: &[[u128; N]; ADD_N],
     linear_flags: &[bool; ADD_N],
 ) {
-    assert_product_limbs_fit_in_246_bits::<N, BITS, LHS_N, RHS_N, NUM_PRODUCTS>();
+    assert_product_limbs_fit::<N, BITS, LHS_N, RHS_N, NUM_PRODUCTS>();
 
     lhs_terms.for_each(|lhs_limbs: [[u128; N]; LHS_N]| {
         lhs_limbs.for_each(|term: [u128; N]| validate_in_range::<N, BITS>(&term))
@@ -571,7 +612,7 @@ pub(crate) fn evaluate_quadratic_expression<let N: u32, let BITS: u32, let LHS_N
         linear_terms,
         linear_flags,
     );
-    validate_expression_is_zero(expression_limbs);
+    validate_expression_is_zero(expression_limbs, carry_bits::<N>());
 }
 
 // ------------------------------ MUL ADD EXPRESSION ------------------------------
@@ -599,7 +640,7 @@ unconstrained fn __compute_mul_add_expression_borrow_flags<let N: u32>(
         result_field[i] = result[i] as Field;
     }
 
-    __compute_borrow_flags(product_limbs, result_field)
+    __compute_borrow_flags(product_limbs, result_field, carry_bits::<N>())
 }
 
 /// Constrained version of `__compute_mul_add_expression_borrow_flags`
@@ -647,7 +688,7 @@ fn compute_mul_add_expression<let N: u32>(
         assert(expression_limbs_full[i] == 0);
     }
 
-    apply_borrow_flags(expression_limbs, borrow_flags)
+    apply_borrow_flags(expression_limbs, borrow_flags, carry_bits::<N>())
 }
 
 /// Constrain `lhs * rhs + addend == result` over the integers
@@ -674,7 +715,7 @@ pub(crate) fn validate_mul_add_expression<let N: u32, let BITS: u32>(
 ) {
     // The relation `lhs * rhs + addend - result = 0` is a single degree-2 product with no linear
     // combinations, i.e. NUM_PRODUCTS = LHS_N = RHS_N = 1.
-    assert_product_limbs_fit_in_246_bits::<N, BITS, 1, 1, 1>();
+    assert_product_limbs_fit::<N, BITS, 1, 1, 1>();
 
     validate_in_range::<N, BITS>(lhs);
     validate_in_range::<N, BITS>(rhs);
@@ -682,5 +723,5 @@ pub(crate) fn validate_mul_add_expression<let N: u32, let BITS: u32>(
     validate_in_range::<N, BITS>(result);
 
     let expression_limbs: [Field; N] = compute_mul_add_expression::<N>(lhs, rhs, addend, result);
-    validate_expression_is_zero(expression_limbs);
+    validate_expression_is_zero(expression_limbs, carry_bits::<N>());
 }
