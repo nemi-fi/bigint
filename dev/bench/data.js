@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793855649515,
+  "lastUpdate": 1793855653366,
   "repoUrl": "https://github.com/noir-lang/bigint",
   "entries": {
     "ACIR Opcodes": [
@@ -20769,6 +20769,345 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/noir-lang/bigint/commit/67dd7552527a951a1cdaf8e4b02bcf8e8340fe45"
         },
         "date": 1793854702924,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "add_U2048_Bench",
+            "value": 310,
+            "unit": "opcodes"
+          },
+          {
+            "name": "add_U256_Bench",
+            "value": 214,
+            "unit": "opcodes"
+          },
+          {
+            "name": "add_U512_Bench",
+            "value": 246,
+            "unit": "opcodes"
+          },
+          {
+            "name": "assert_is_not_equal_U2048_Bench",
+            "value": 138,
+            "unit": "opcodes"
+          },
+          {
+            "name": "assert_is_not_equal_U256_Bench",
+            "value": 96,
+            "unit": "opcodes"
+          },
+          {
+            "name": "assert_is_not_equal_U512_Bench",
+            "value": 122,
+            "unit": "opcodes"
+          },
+          {
+            "name": "cmp_U2048_Bench",
+            "value": 874,
+            "unit": "opcodes"
+          },
+          {
+            "name": "cmp_U256_Bench",
+            "value": 288,
+            "unit": "opcodes"
+          },
+          {
+            "name": "cmp_U512_Bench",
+            "value": 452,
+            "unit": "opcodes"
+          },
+          {
+            "name": "derive_from_seed_13_elements_U2048_Bench",
+            "value": 536,
+            "unit": "opcodes"
+          },
+          {
+            "name": "derive_from_seed_13_elements_U256_Bench",
+            "value": 378,
+            "unit": "opcodes"
+          },
+          {
+            "name": "derive_from_seed_13_elements_U512_Bench",
+            "value": 408,
+            "unit": "opcodes"
+          },
+          {
+            "name": "div_U2048_Bench",
+            "value": 1880,
+            "unit": "opcodes"
+          },
+          {
+            "name": "div_U256_Bench",
+            "value": 1756,
+            "unit": "opcodes"
+          },
+          {
+            "name": "div_U512_Bench",
+            "value": 1975,
+            "unit": "opcodes"
+          },
+          {
+            "name": "div_rem_U2048_Bench",
+            "value": 1899,
+            "unit": "opcodes"
+          },
+          {
+            "name": "div_rem_U256_Bench",
+            "value": 1775,
+            "unit": "opcodes"
+          },
+          {
+            "name": "div_rem_U512_Bench",
+            "value": 1994,
+            "unit": "opcodes"
+          },
+          {
+            "name": "eq_U2048_Bench",
+            "value": 419,
+            "unit": "opcodes"
+          },
+          {
+            "name": "eq_U256_Bench",
+            "value": 119,
+            "unit": "opcodes"
+          },
+          {
+            "name": "eq_U512_Bench",
+            "value": 161,
+            "unit": "opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_1_element_U2048_Bench",
+            "value": 2793,
+            "unit": "opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_1_element_U256_Bench",
+            "value": 1469,
+            "unit": "opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_1_element_U512_Bench",
+            "value": 1896,
+            "unit": "opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_3_elements_U2048_Bench",
+            "value": 3777,
+            "unit": "opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_3_elements_U256_Bench",
+            "value": 2115,
+            "unit": "opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_3_elements_U512_Bench",
+            "value": 2545,
+            "unit": "opcodes"
+          },
+          {
+            "name": "from_be_bytes_U2048_Bench",
+            "value": 441,
+            "unit": "opcodes"
+          },
+          {
+            "name": "from_be_bytes_U256_Bench",
+            "value": 293,
+            "unit": "opcodes"
+          },
+          {
+            "name": "from_be_bytes_U512_Bench",
+            "value": 529,
+            "unit": "opcodes"
+          },
+          {
+            "name": "from_field_U2048_Bench",
+            "value": 116,
+            "unit": "opcodes"
+          },
+          {
+            "name": "from_field_U256_Bench",
+            "value": 98,
+            "unit": "opcodes"
+          },
+          {
+            "name": "from_field_U512_Bench",
+            "value": 90,
+            "unit": "opcodes"
+          },
+          {
+            "name": "from_le_bytes_U2048_Bench",
+            "value": 482,
+            "unit": "opcodes"
+          },
+          {
+            "name": "from_le_bytes_U256_Bench",
+            "value": 360,
+            "unit": "opcodes"
+          },
+          {
+            "name": "from_le_bytes_U512_Bench",
+            "value": 596,
+            "unit": "opcodes"
+          },
+          {
+            "name": "is_zero_U2048_Bench",
+            "value": 148,
+            "unit": "opcodes"
+          },
+          {
+            "name": "is_zero_U256_Bench",
+            "value": 58,
+            "unit": "opcodes"
+          },
+          {
+            "name": "is_zero_U512_Bench",
+            "value": 70,
+            "unit": "opcodes"
+          },
+          {
+            "name": "mul_U2048_Bench",
+            "value": 463,
+            "unit": "opcodes"
+          },
+          {
+            "name": "mul_U256_Bench",
+            "value": 223,
+            "unit": "opcodes"
+          },
+          {
+            "name": "mul_U512_Bench",
+            "value": 384,
+            "unit": "opcodes"
+          },
+          {
+            "name": "pow_U2048_Bench",
+            "value": 883,
+            "unit": "opcodes"
+          },
+          {
+            "name": "pow_U256_Bench",
+            "value": 395,
+            "unit": "opcodes"
+          },
+          {
+            "name": "pow_U512_Bench",
+            "value": 696,
+            "unit": "opcodes"
+          },
+          {
+            "name": "rem_U2048_Bench",
+            "value": 1882,
+            "unit": "opcodes"
+          },
+          {
+            "name": "rem_U256_Bench",
+            "value": 1758,
+            "unit": "opcodes"
+          },
+          {
+            "name": "rem_U512_Bench",
+            "value": 1977,
+            "unit": "opcodes"
+          },
+          {
+            "name": "sub_U2048_Bench",
+            "value": 464,
+            "unit": "opcodes"
+          },
+          {
+            "name": "sub_U256_Bench",
+            "value": 276,
+            "unit": "opcodes"
+          },
+          {
+            "name": "sub_U512_Bench",
+            "value": 368,
+            "unit": "opcodes"
+          },
+          {
+            "name": "to_be_bytes_U2048_Bench",
+            "value": 191,
+            "unit": "opcodes"
+          },
+          {
+            "name": "to_be_bytes_U256_Bench",
+            "value": 201,
+            "unit": "opcodes"
+          },
+          {
+            "name": "to_be_bytes_U512_Bench",
+            "value": 301,
+            "unit": "opcodes"
+          },
+          {
+            "name": "to_field_U2048_Bench",
+            "value": 653,
+            "unit": "opcodes"
+          },
+          {
+            "name": "to_field_U256_Bench",
+            "value": 146,
+            "unit": "opcodes"
+          },
+          {
+            "name": "to_field_U512_Bench",
+            "value": 213,
+            "unit": "opcodes"
+          },
+          {
+            "name": "to_le_bytes_U2048_Bench",
+            "value": 231,
+            "unit": "opcodes"
+          },
+          {
+            "name": "to_le_bytes_U256_Bench",
+            "value": 244,
+            "unit": "opcodes"
+          },
+          {
+            "name": "to_le_bytes_U512_Bench",
+            "value": 344,
+            "unit": "opcodes"
+          },
+          {
+            "name": "validate_in_range_U2048_Bench",
+            "value": 220,
+            "unit": "opcodes"
+          },
+          {
+            "name": "validate_in_range_U256_Bench",
+            "value": 70,
+            "unit": "opcodes"
+          },
+          {
+            "name": "validate_in_range_U512_Bench",
+            "value": 90,
+            "unit": "opcodes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "15848336+TomAFrench@users.noreply.github.com",
+            "name": "Tom French",
+            "username": "TomAFrench"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d9156314bffc98d503e469afe42645409ec4178c",
+          "message": "chore!: remove `derive_from_seed` from the public API (#28)\n\n* chore!: remove derive_from_seed from the BigInt trait\n\nderive_from_seed and __derive_from_seed are testing helpers rather than\ninteger operations. They remain available as the free functions\ninternal::derive_from_seed and internal::__derive_from_seed, which return\nlimbs. The tests use a generic helper built on them.\n\nDocuments the seed length limit and the security warning on the free\nfunction, and removes the stale trait documentation.\n\nClaude-Session: https://claude.ai/code/session_01EhqKvDA1t4G18DeHLTw3X4\n\n* chore!: make derive_from_seed internal and document it in SPEC.md\n\nRemoves internal::derive_from_seed and internal::__derive_from_seed from\nthe public API, and the __derive_from_seed wrapper, which only called\nderive_from_seed. The tests and benchmarks use derive_from_seed directly.\n\nAdds an \"Internal functions\" section to SPEC.md describing how\nderive_from_seed derives its output, why it is fully constrained, and its\nlimitations.\n\nClaude-Session: https://claude.ai/code/session_01EhqKvDA1t4G18DeHLTw3X4",
+          "timestamp": "2026-11-05T13:13:49+08:00",
+          "tree_id": "b63f3ccc2cd16a753c6afd785cd313af9662cd83",
+          "url": "https://github.com/noir-lang/bigint/commit/d9156314bffc98d503e469afe42645409ec4178c"
+        },
+        "date": 1793855653351,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
