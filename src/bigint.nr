@@ -658,6 +658,12 @@ pub unconstrained fn compute_quadratic_expression<T: BigInt, let LHS_N: u32, let
 ///
 /// # Panics
 /// Fails if the expression does not equal zero.
+///
+/// # Note
+/// Only the terms are range-checked to `BITS` bits. Intermediate values within the expression,
+/// such as the products, may exceed `2^BITS` or be negative, as long as the expression as a
+/// whole equals zero. E.g. `a * a - a * d - r = 0` holds for `a = 2^128`, `d = 2^128 - 1` and
+/// `r = 2^128` in `U256`, even though `a * a` does not fit in a `U256`.
 pub fn evaluate_quadratic_expression<T: BigInt, let LHS_N: u32, let RHS_N: u32, let NUM_PRODUCTS: u32, let ADD_N: u32>(
     lhs_terms: [[T; LHS_N]; NUM_PRODUCTS],
     lhs_flags: [[bool; LHS_N]; NUM_PRODUCTS],
