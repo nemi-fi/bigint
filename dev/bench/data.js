@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793849183123,
+  "lastUpdate": 1793849184516,
   "repoUrl": "https://github.com/noir-lang/bigint",
   "entries": {
     "ACIR Opcodes": [
@@ -9814,6 +9814,360 @@ window.BENCHMARK_DATA = {
           {
             "name": "udiv_mod_U512_Bench.json/main",
             "value": 3011,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "validate_in_range_U2048_Bench.json/main",
+            "value": 2890,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "validate_in_range_U256_Bench.json/main",
+            "value": 2817,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "validate_in_range_U512_Bench.json/main",
+            "value": 2829,
+            "unit": "circuit_size"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "15848336+TomAFrench@users.noreply.github.com",
+            "name": "Tom French",
+            "username": "TomAFrench"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ae69cff8e47052b1f0766409b84cd6ad6824cc4d",
+          "message": "feat!: rename `udiv_mod` to `div_rem` and implement `%` (#13)\n\n* feat!: rename `udiv_mod` to `div_rem` and implement `%`\n\nThe `u` prefix distinguished integer division from modular division,\nand `umod` the remainder from the modulus, which no longer exist.\n\n- `udiv_mod` / `__udiv_mod` are renamed to `div_rem` / `__div_rem`. This\n  is Euclidean division, which coincides with floored and truncated\n  division for unsigned integers.\n- `umod` is replaced by an implementation of `std::ops::Rem`, i.e. `%`,\n  which is now a supertrait of `BigInt`.\n\nBREAKING CHANGE: `udiv_mod` and `__udiv_mod` are renamed to `div_rem` and\n`__div_rem`, and `umod(&b)` is replaced by `% b`.\n\n* docs: update SPEC.md for div_rem and %",
+          "timestamp": "2026-11-05T11:26:02+08:00",
+          "tree_id": "f31e58162c54f8351a19ca33e295d1b4a5e997ef",
+          "url": "https://github.com/noir-lang/bigint/commit/ae69cff8e47052b1f0766409b84cd6ad6824cc4d"
+        },
+        "date": 1793849184501,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "add_U2048_Bench.json/main",
+            "value": 3236,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "add_U256_Bench.json/main",
+            "value": 2873,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "add_U512_Bench.json/main",
+            "value": 2928,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "assert_is_not_equal_U2048_Bench.json/main",
+            "value": 3027,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "assert_is_not_equal_U256_Bench.json/main",
+            "value": 2803,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "assert_is_not_equal_U512_Bench.json/main",
+            "value": 2833,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "assert_is_not_zero_U2048_Bench.json/main",
+            "value": 2893,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "assert_is_not_zero_U256_Bench.json/main",
+            "value": 2780,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "assert_is_not_zero_U512_Bench.json/main",
+            "value": 2794,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "cmp_U2048_Bench.json/main",
+            "value": 3204,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "cmp_U256_Bench.json/main",
+            "value": 2869,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "cmp_U512_Bench.json/main",
+            "value": 2917,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "derive_from_seed_13_elements_U2048_Bench.json/main",
+            "value": 4280,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "derive_from_seed_13_elements_U256_Bench.json/main",
+            "value": 3201,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "derive_from_seed_13_elements_U512_Bench.json/main",
+            "value": 3349,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "div_U2048_Bench.json/main",
+            "value": 3791,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "div_U256_Bench.json/main",
+            "value": 2903,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "div_U512_Bench.json/main",
+            "value": 3001,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "div_rem_U2048_Bench.json/main",
+            "value": 3827,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "div_rem_U256_Bench.json/main",
+            "value": 2909,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "div_rem_U512_Bench.json/main",
+            "value": 3011,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "eq_U2048_Bench.json/main",
+            "value": 3052,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "eq_U256_Bench.json/main",
+            "value": 2841,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "eq_U512_Bench.json/main",
+            "value": 2872,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "evaluate_quadratic_expression_1_element_U2048_Bench.json/main",
+            "value": 4075,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "evaluate_quadratic_expression_1_element_U256_Bench.json/main",
+            "value": 3039,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "evaluate_quadratic_expression_1_element_U512_Bench.json/main",
+            "value": 3423,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "evaluate_quadratic_expression_3_elements_U2048_Bench.json/main",
+            "value": 5158,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "evaluate_quadratic_expression_3_elements_U256_Bench.json/main",
+            "value": 3119,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "evaluate_quadratic_expression_3_elements_U512_Bench.json/main",
+            "value": 3585,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "from_be_bytes_U2048_Bench.json/main",
+            "value": 3369,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "from_be_bytes_U256_Bench.json/main",
+            "value": 2872,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "from_be_bytes_U512_Bench.json/main",
+            "value": 2937,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "from_field_U2048_Bench.json/main",
+            "value": 3070,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "from_field_U256_Bench.json/main",
+            "value": 2844,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "from_field_U512_Bench.json/main",
+            "value": 2877,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "from_le_bytes_U2048_Bench.json/main",
+            "value": 3369,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "from_le_bytes_U256_Bench.json/main",
+            "value": 2872,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "from_le_bytes_U512_Bench.json/main",
+            "value": 2937,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "is_zero_U2048_Bench.json/main",
+            "value": 2885,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "is_zero_U256_Bench.json/main",
+            "value": 2782,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "is_zero_U512_Bench.json/main",
+            "value": 2795,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "mul_U2048_Bench.json/main",
+            "value": 3746,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "mul_U256_Bench.json/main",
+            "value": 2987,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "mul_U512_Bench.json/main",
+            "value": 3334,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "pow_U2048_Bench.json/main",
+            "value": 3145,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "pow_U256_Bench.json/main",
+            "value": 2821,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "pow_U512_Bench.json/main",
+            "value": 2865,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "rem_U2048_Bench.json/main",
+            "value": 3791,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "rem_U256_Bench.json/main",
+            "value": 2903,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "rem_U512_Bench.json/main",
+            "value": 3001,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "sub_U2048_Bench.json/main",
+            "value": 3236,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "sub_U256_Bench.json/main",
+            "value": 2873,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "sub_U512_Bench.json/main",
+            "value": 2928,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "to_be_bytes_U2048_Bench.json/main",
+            "value": 3840,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "to_be_bytes_U256_Bench.json/main",
+            "value": 2939,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "to_be_bytes_U512_Bench.json/main",
+            "value": 3066,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "to_field_U2048_Bench.json/main",
+            "value": 3035,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "to_field_U256_Bench.json/main",
+            "value": 2839,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "to_field_U512_Bench.json/main",
+            "value": 2868,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "to_le_bytes_U2048_Bench.json/main",
+            "value": 3840,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "to_le_bytes_U256_Bench.json/main",
+            "value": 2939,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "to_le_bytes_U512_Bench.json/main",
+            "value": 3066,
             "unit": "circuit_size"
           },
           {
