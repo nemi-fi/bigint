@@ -43,34 +43,34 @@ fn main(a: U256, b: U256, expected: U256) {
 
 The following types are provided (see [`src/types/`](./src/types/)):
 
-| Type    | Limbs (`N`) | `MOD_BITS` |
-| ------- | ----------- | ---------- |
-| `U256`  | 3           | 257        |
-| `U512`  | 5           | 513        |
-| `U1024` | 9           | 1025       |
-| `U2048` | 18          | 2049       |
-| `U4096` | 35          | 4097       |
-| `U8192` | 69          | 8193       |
+| Type    | Limbs (`N`) | `BITS` |
+| ------- | ----------- | ------ |
+| `U256`  | 3           | 256    |
+| `U512`  | 5           | 512    |
+| `U1024` | 9           | 1024   |
+| `U2048` | 18          | 2048   |
+| `U4096` | 35          | 4096   |
+| `U8192` | 69          | 8192   |
 
 Values are stored as arrays of `N` little-endian 120-bit limbs held in `u128`s, i.e. `[a, b, c]` represents $a + b \cdot 2^{120} + c \cdot 2^{240}$. The headroom left in each `u128` allows intermediate sums and products to be computed without overflow.
 
-Each type `UX` performs arithmetic modulo $2^X$. `MOD_BITS` is the bit length of that modulus (`X + 1`).
+A `UX` holds values in $[0, 2^X)$: the top limb is range-checked to `X - 120 * (N - 1)` bits, so every value has exactly one limb representation. Every constructor (other than the `*_unsafe` ones, see below) and every operation range-checks its result.
 
 ### Defining your own width
 
-A new width can be created with the `derive_bigint` macro, passing the number of limbs `N` and `MOD_BITS`:
+A new width can be created with the `derive_bigint` macro, passing the bit width:
 
 ```rust
 use bigint::{BigInt, derive_bigint};
 
 // An unsigned 320-bit integer
-#[derive_bigint(3, 321)]
+#[derive_bigint(320)]
 pub struct U320 {
     limbs: [u128; 3],
 }
 ```
 
-`MOD_BITS` must satisfy `120 * (N - 1) < MOD_BITS < 120 * N`, which is checked at compile time.
+The `limbs` array must have `N = ceil(BITS / 120)` elements. At least two limbs are required, and the top limb can hold at most 118 bits, so widths where `BITS % 120` is `0` or `119` are not supported. These are all checked at compile time.
 
 At least two limbs are required. Single-limb types are not supported.
 
@@ -83,13 +83,12 @@ The overloaded operators are constrained:
 - `+`, `-`, `*`: arithmetic modulo $2^X$ (wrapping)
 - `/`: integer division (rounding down)
 - `==`: equality
-- `<`, `<=`, `>`, `>=`: integer comparison. Both operands must be canonical (see `validate_canonical` below).
+- `<`, `<=`, `>`, `>=`: integer comparison
 
 Additional constrained methods:
 
 - `sqr`
 - `udiv_mod`, `umod`: integer division with remainder, and remainder only
-- `div_unsafe`, `udiv_mod_unsafe`, `umod_unsafe`: as `/`, `udiv_mod` and `umod`, but skip `validate_canonical` on the inputs. Only use these when both operands are already known to be canonical.
 
 ### Unconstrained arithmetic
 
@@ -100,7 +99,7 @@ These generate no constraints. Their results must be constrained, ideally with `
 ### Constructors and limb access
 
 - `new`, `zero`, `one`
-- `from_limbs` (range-checks the limbs), `from_limbs_unsafe` (does not)
+- `from_limbs` (range-checks the limbs), `from_limbs_unsafe` (does not; the result must be range-checked with `validate_in_range` before use)
 - `get_limbs`, `get_limb(idx)`
 - `set_limb(idx, value)` (range-checks the new value), `set_limb_unsafe(idx, value)` (does not)
 - `derive_from_seed`, `__derive_from_seed`: deterministically derive a value from a byte seed. Not cryptographically secure; intended for testing.
@@ -109,15 +108,13 @@ These generate no constraints. Their results must be constrained, ideally with `
 
 - `From<Field>`: `U256::from(x)`
 - `to_field(x)`: converts to a `Field`, failing if the value does not fit
-- `from_be_bytes`, `from_le_bytes`, `to_be_bytes`, `to_le_bytes`: byte conversions, which validate that the value is canonical. `*_unsafe` variants skip that check.
+- `from_be_bytes`, `from_le_bytes`, `to_be_bytes`, `to_le_bytes`: byte conversions using `(BITS + 7) / 8` bytes
 
 ### Assertions and range checks
 
-- `is_zero`, `assert_is_not_zero`: zero checks modulo $2^X$
-- `unsafe_is_zero_integer`, `unsafe_assert_is_not_zero_integer`: checks that all limbs are zero
+- `is_zero`, `assert_is_not_zero`: zero checks
 - `assert_is_not_equal`: cheaper than `assert(a != b)`
-- `validate_in_range`: each limb is at most 120 bits and the value is at most `MOD_BITS` bits
-- `validate_canonical`: the value is canonical, i.e. less than $2^X$. This is a stronger check than `validate_in_range`.
+- `validate_in_range`: each limb is at most 120 bits and the value is less than $2^X$
 
 ### `evaluate_quadratic_expression`
 

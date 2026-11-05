@@ -4,6 +4,7 @@ use crate::bigint::{evaluate_quadratic_expression, to_field};
 use crate::constants::{GRUMPKIN_MODULUS, TWO_POW_120, TWO_POW_240};
 use crate::fns::constrained_ops::{from_field, validate_gt};
 use crate::fns::expressions::{assert_product_limbs_fit_in_246_bits, validate_udiv_mod_expression};
+use crate::fns::modulus::get_modulus;
 use crate::fns::unconstrained_helpers::__helper_add;
 
 use crate::types::U2048::U2048;
@@ -11,25 +12,22 @@ use crate::types::U256::U256;
 use crate::types::U512::U512;
 
 // Test-only unsigned integer types whose values always fit within the native field
-// (`MOD_BITS <= 254`), used to exercise code paths specific to such types.
+// (`BITS <= 253`), used to exercise code paths specific to such types.
 
-// A 252-bit unsigned integer (`MOD_BITS = 253`)
-#[derive_bigint(3, 253)]
+// A 252-bit unsigned integer
+#[derive_bigint(252)]
 pub struct U252 {
     limbs: [u128; 3],
 }
 
-// A 253-bit unsigned integer (`MOD_BITS = 254`)
-#[derive_bigint(3, 254)]
+// A 253-bit unsigned integer
+#[derive_bigint(253)]
 pub struct U253 {
     limbs: [u128; 3],
 }
 
 // 2^256 - 1
 global U256_MAX: [u128; 3] = [TWO_POW_120 - 1, TWO_POW_120 - 1, 0xffff];
-
-// 2^257 - 1, the largest value which passes the range check for `U256`
-global U256_MAX_REPRESENTABLE: [u128; 3] = [TWO_POW_120 - 1, TWO_POW_120 - 1, 0x1ffff];
 
 // ------------------------------ REGRESSION TESTS ------------------------------
 
@@ -50,7 +48,7 @@ fn test_evaluate_quadratic_expression_add_extra_mod_fuzz(xseed: [u8; 4], yseed: 
     let x: U256 = U256::derive_from_seed(xseed);
     let y: U256 = U256::derive_from_seed(yseed);
 
-    let modulus: [u128; 3] = U256::modulus().get_limbs();
+    let modulus: [u128; 3] = get_modulus::<3, 256>();
 
     // compute honest z = x + y (mod MOD)
     // Safety: test code
@@ -60,7 +58,7 @@ fn test_evaluate_quadratic_expression_add_extra_mod_fuzz(xseed: [u8; 4], yseed: 
     // Safety: test code
     z_ = unsafe { __helper_add(&z_, &modulus) };
 
-    let z: U256 = U256::from_limbs(z_);
+    let z: U256 = U256::from_limbs_unsafe(z_);
 
     evaluate_quadratic_expression([[]], [[]], [[]], [[]], [x, y, z], [false, false, true]);
 }
@@ -70,7 +68,7 @@ fn test_evaluate_quadratic_expression_mul_extra_mod_fuzz(xseed: [u8; 1], yseed: 
     let x: U256 = U256::derive_from_seed(xseed);
     let y: U256 = U256::derive_from_seed(yseed);
 
-    let modulus: [u128; 3] = U256::modulus().get_limbs();
+    let modulus: [u128; 3] = get_modulus::<3, 256>();
 
     // compute honest z = x * y (mod MOD)
     // Safety: test code
@@ -80,7 +78,7 @@ fn test_evaluate_quadratic_expression_mul_extra_mod_fuzz(xseed: [u8; 1], yseed: 
     // Safety: test code
     z_ = unsafe { __helper_add(&z_, &modulus) };
 
-    let z: U256 = U256::from_limbs(z_);
+    let z: U256 = U256::from_limbs_unsafe(z_);
 
     evaluate_quadratic_expression([[x]], [[false]], [[y]], [[false]], [z], [true]);
 }
@@ -92,7 +90,7 @@ fn test_udiv_mod_extra_modulus_regression(xseed: [u8; 1], yseed: [u8; 2]) {
     let x: U256 = U256::derive_from_seed(xseed);
     let y: U256 = U256::derive_from_seed(yseed);
 
-    let modulus: [u128; 3] = U256::modulus().get_limbs();
+    let modulus: [u128; 3] = get_modulus::<3, 256>();
 
     // compute honest z = x * y (mod MOD)
     // Safety: test code
@@ -102,7 +100,7 @@ fn test_udiv_mod_extra_modulus_regression(xseed: [u8; 1], yseed: [u8; 2]) {
     // Safety: test code
     q_ = unsafe { __helper_add(&q_, &modulus) };
 
-    validate_udiv_mod_expression::<3, 257>(&x.get_limbs(), &y.get_limbs(), &q_, &r.get_limbs());
+    validate_udiv_mod_expression::<3, 256>(&x.get_limbs(), &y.get_limbs(), &q_, &r.get_limbs());
 }
 
 // This tests that `validate_gt` no longer accepts identical inputs
@@ -112,7 +110,7 @@ fn test_validate_gt_regression_U256() {
     let y: U256 = U256::derive_from_seed([1, 2, 3, 4]);
     let x_limbs = x.get_limbs();
     let y_limbs = y.get_limbs();
-    validate_gt::<3, 257>(&x_limbs, &y_limbs);
+    validate_gt::<3, 256>(&x_limbs, &y_limbs);
 }
 
 // Regression tests for evaluate_quadratic_expression overflow detection.
@@ -142,94 +140,25 @@ fn test_evaluate_quadratic_expression_overflow_num_products_U256_2() {
     evaluate_quadratic_expression([[zero; 6]], [[false; 6]], [[zero; 6]], [[false; 6]], [], []);
 }
 
-// The (N-1)th limb bound only dominates when `TOP_LIMB_BITS == 120`, i.e. when
-// `MOD_BITS = N * 120`. None of the shipped `BigInt` types hit that case, so we
+// The (N-1)th limb bound only dominates when `TOP_LIMB_BITS + 1 == 120`, i.e. when
+// `BITS = N * 120 - 1`. None of the shipped `BigInt` types hit that case, so we
 // exercise the check directly via `assert_product_limbs_fit_in_246_bits` with a
-// synthetic `<N, MOD_BITS>` pair.
+// synthetic `<N, BITS>` pair.
 //
-// With N=3, MOD_BITS=360, LHS_N=RHS_N=1, NUM_PRODUCTS=22:
+// With N=3, BITS=359, LHS_N=RHS_N=1, NUM_PRODUCTS=22:
 //   - (N-2)th bound: 22 * 2 * (2^120-1)^2 ~ 44 * 2^240 < 2^246  (passes)
 //   - (N-1)th bound: 22 * 3 * (2^120-1)^2 ~ 66 * 2^240 > 2^246  (fails first)
 #[test(should_fail_with = "product limbs may exceed 2^246 at limb 2")]
 fn test_assert_product_limbs_fit_in_246_bits_n_minus_1() {
-    assert_product_limbs_fit_in_246_bits::<3, 360, 1, 1, 22>();
+    assert_product_limbs_fit_in_246_bits::<3, 359, 1, 1, 22>();
 }
 
-#[test(should_fail_with = "assert_is_not_zero_integer fail")]
-fn test_udiv_mod_non_canonical_regression() {
-    let modulus: U256 = U256::modulus();
-    let one: U256 = U256::one();
-    let (_, _) = one.udiv_mod(&modulus);
-}
-
-// A non-canonical numerator (numerator + MOD) would yield a different quotient.
-// udiv_mod must reject it via validate_canonical.
-#[test(should_fail_with = "assert_max_bit_size")]
-fn test_udiv_mod_non_canonical_numerator() {
-    let modulus_limbs: [u128; 3] = U256::modulus().get_limbs();
-    let five: U256 = U256::from_limbs([5, 0, 0]);
-    let divisor: U256 = U256::from_limbs([10, 0, 0]);
-
-    // Construct MOD + 5 (non-canonical representation of 5)
-    // Safety: test code
-    let non_canonical_limbs: [u128; 3] = unsafe { __helper_add(&five.get_limbs(), &modulus_limbs) };
-    let non_canonical_numerator: U256 = U256::from_limbs(non_canonical_limbs);
-
-    let (_, _) = non_canonical_numerator.udiv_mod(&divisor);
-}
-
-// A non-canonical divisor (divisor + MOD) would yield a different quotient/remainder.
-// udiv_mod must reject it via validate_canonical.
-#[test(should_fail_with = "assert_max_bit_size")]
-fn test_udiv_mod_non_canonical_divisor() {
-    let modulus_limbs: [u128; 3] = U256::modulus().get_limbs();
-    let numerator: U256 = U256::from_limbs([100, 0, 0]);
-    let ten: U256 = U256::from_limbs([10, 0, 0]);
-
-    // Construct MOD + 10 (non-canonical representation of 10)
-    // Safety: test code
-    let non_canonical_limbs: [u128; 3] = unsafe { __helper_add(&ten.get_limbs(), &modulus_limbs) };
-    let non_canonical_divisor: U256 = U256::from_limbs(non_canonical_limbs);
-
-    let (_, _) = numerator.udiv_mod(&non_canonical_divisor);
-}
-
-// udiv_mod_unsafe does not validate inputs, so non-canonical numerator is accepted.
-#[test]
-fn test_udiv_mod_unsafe_non_canonical_numerator() {
-    let modulus_limbs: [u128; 3] = U256::modulus().get_limbs();
-    let five: U256 = U256::from_limbs([5, 0, 0]);
-    let divisor: U256 = U256::from_limbs([10, 0, 0]);
-
-    // Construct MOD + 5 (non-canonical representation of 5)
-    // Safety: test code
-    let non_canonical_limbs: [u128; 3] = unsafe { __helper_add(&five.get_limbs(), &modulus_limbs) };
-    let non_canonical_numerator: U256 = U256::from_limbs(non_canonical_limbs);
-
-    let (_, _) = non_canonical_numerator.udiv_mod_unsafe(&divisor);
-}
-
-// udiv_mod_unsafe does not validate inputs, so non-canonical divisor is accepted.
-#[test]
-fn test_udiv_mod_unsafe_non_canonical_divisor() {
-    let modulus_limbs: [u128; 3] = U256::modulus().get_limbs();
-    let numerator: U256 = U256::from_limbs([100, 0, 0]);
-    let ten: U256 = U256::from_limbs([10, 0, 0]);
-
-    // Construct MOD + 10 (non-canonical representation of 10)
-    // Safety: test code
-    let non_canonical_limbs: [u128; 3] = unsafe { __helper_add(&ten.get_limbs(), &modulus_limbs) };
-    let non_canonical_divisor: U256 = U256::from_limbs(non_canonical_limbs);
-
-    let (_, _) = numerator.udiv_mod_unsafe(&non_canonical_divisor);
-}
-
-// from_field must reject values >= MOD, even when they are smaller than the Grumpkin modulus.
+// from_field must reject values >= 2^BITS, even when they are smaller than the Grumpkin modulus.
 #[test(should_fail_with = "call to assert_max_bit_size")]
 fn test_from_field_regression() {
     // 2^253 + 5
     let value: Field = 0x2000 * TWO_POW_240 + 5;
-    let _: [u128; 3] = from_field::<3, 254>(value);
+    let _: [u128; 3] = from_field::<3, 253>(value);
 }
 
 // ------------------------------ COMPLETENESS TESTS ------------------------------
@@ -260,8 +189,8 @@ fn test_evaluate_quadratic_expression_many_negated_terms() {
 // ------------------------------ BASIC TESTS ------------------------------
 
 #[test]
-fn test_mod_bits_U256() {
-    assert_eq(<U256 as BigInt>::MOD_BITS, 257)
+fn test_bits_U256() {
+    assert_eq(<U256 as BigInt>::BITS, 256)
 }
 
 #[test]
@@ -291,7 +220,7 @@ fn test_set_limb_U256() {
 fn test_derive_from_seed() {
     let seed: [u8; 4] = [1, 2, 3, 4];
     let result_bn: U256 = BigInt::derive_from_seed(seed);
-    result_bn.validate_canonical();
+    result_bn.validate_in_range();
 }
 
 #[test]
@@ -308,21 +237,21 @@ fn test_validate_derive_from_seed() {
 // from_limbs must reject limbs that exceed the valid range.
 #[test(should_fail)]
 fn test_from_limbs_rejects_oversized_top_limb() {
-    // U256 top limb is 17 bits, 0x20000 = 2^17 exceeds that
-    let _: U256 = U256::from_limbs([0, 0, 0x20000]);
+    // U256 top limb is 16 bits, 0x10000 = 2^16 exceeds that
+    let _: U256 = U256::from_limbs([0, 0, 0x10000]);
 }
 
 // from_limbs_unsafe accepts limbs that exceed the valid range.
 #[test]
 fn test_from_limbs_unsafe_accepts_oversized_top_limb() {
-    let _: U256 = U256::from_limbs_unsafe([0, 0, 0x20000]);
+    let _: U256 = U256::from_limbs_unsafe([0, 0, 0x10000]);
 }
 
 // set_limb must reject a value that exceeds the valid range for the top limb.
 #[test(should_fail)]
 fn test_set_limb_rejects_oversized_top_limb() {
     let mut a: U256 = U256::zero();
-    a.set_limb(2, 0x20000);
+    a.set_limb(2, 0x10000);
 }
 
 // set_limb must reject a value that exceeds 120 bits for a non-top limb.
@@ -336,8 +265,8 @@ fn test_set_limb_rejects_oversized_non_top_limb() {
 #[test]
 fn test_set_limb_unsafe_accepts_oversized() {
     let mut a: U256 = U256::zero();
-    a.set_limb_unsafe(2, 0x20000);
-    assert(a.get_limb(2) == 0x20000);
+    a.set_limb_unsafe(2, 0x10000);
+    assert(a.get_limb(2) == 0x10000);
 }
 
 // ------------------------------ CONVERSION TESTS ------------------------------
@@ -387,20 +316,19 @@ fn test_from_field_5_digits() {
     assert(result == expected);
 }
 
-// MOD_BITS < 254: validates via validate_canonical(MOD).
+// BITS < 253: validated by the range check alone.
 #[test]
-fn test_from_field_mod_bits_lt_254() {
-    let modulus: [u128; 3] = U252::modulus().get_limbs();
+fn test_from_field_bits_lt_253() {
     // 2^252 - 1
-    let max: Field = (modulus[2] as Field) * TWO_POW_240 - 1;
-    let result: [u128; 3] = from_field::<3, 253>(max);
-    assert(result == [TWO_POW_120 - 1, TWO_POW_120 - 1, modulus[2] - 1]);
+    let max: Field = 0x1000 * TWO_POW_240 - 1;
+    let result: [u128; 3] = from_field::<3, 252>(max);
+    assert(result == [TWO_POW_120 - 1, TWO_POW_120 - 1, 0xfff]);
 }
 
-// MOD_BITS > 254: validates via validate_gt(GRUMPKIN, result).
+// BITS > 253: validates via validate_gt(GRUMPKIN, result).
 #[test]
-fn test_from_field_mod_bits_gt_254() {
-    let result: [u128; 5] = from_field::<5, 513>(-1 as Field);
+fn test_from_field_bits_gt_253() {
+    let result: [u128; 5] = from_field::<5, 512>(-1 as Field);
     assert(result[0] == GRUMPKIN_MODULUS[0] - 1);
     assert(result[1] == GRUMPKIN_MODULUS[1]);
     assert(result[2] == GRUMPKIN_MODULUS[2]);
@@ -408,21 +336,21 @@ fn test_from_field_mod_bits_gt_254() {
     assert(result[4] == 0);
 }
 
-// MOD_BITS == 254: MOD = 2^253 is smaller than the Grumpkin modulus, so values are validated against MOD.
+// BITS == 253: 2^253 is smaller than the Grumpkin modulus, so the range check alone suffices.
 #[test]
-fn test_from_field_mod_bits_eq_254() {
+fn test_from_field_bits_eq_253() {
     // 2^253 - 1
     let max: Field = 0x2000 * TWO_POW_240 - 1;
-    let result: [u128; 3] = from_field::<3, 254>(max);
+    let result: [u128; 3] = from_field::<3, 253>(max);
     assert(result == [TWO_POW_120 - 1, TWO_POW_120 - 1, 0x1fff]);
 
     let result: U253 = U253::from(max);
     assert_eq(to_field(result), max);
 }
 
-// MOD_BITS == 254: values in [2^253, GRUMPKIN_MODULUS) are rejected.
+// BITS == 253: values in [2^253, GRUMPKIN_MODULUS) are rejected.
 #[test(should_fail_with = "call to assert_max_bit_size")]
-fn test_from_field_mod_bits_eq_254_rejects_neg_one() {
+fn test_from_field_bits_eq_253_rejects_neg_one() {
     let _: U253 = U253::from(-1);
 }
 
@@ -529,22 +457,22 @@ fn test_to_from_field_2() {
     assert(a == c);
 }
 
-/// `U252` has `MOD_BITS = 253` and `N = 3`, so every value is below the Grumpkin
+/// `U252` has `BITS = 252` and `N = 3`, so every value is below the Grumpkin
 /// modulus by construction and `to_field` must not attempt (and fail) to compare against it.
 #[test]
-fn test_to_field_mod_bits_below_254() {
+fn test_to_field_bits_below_254() {
     let one = U252::one();
     assert_eq(to_field(one), 1);
 
-    // the largest representable value, `modulus - 1`
+    // the largest representable value, `2^252 - 1`
     let U252_MODULUS_MINUS_ONE: Field =
         0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
-    let max = U252::modulus() - U252::one();
+    let max = U252::zero() - U252::one();
     assert_eq(to_field(max), U252_MODULUS_MINUS_ONE);
 }
 
 #[test]
-fn fuzz_to_from_field_mod_bits_below_254(seed: [u8; 5]) {
+fn fuzz_to_from_field_bits_below_254(seed: [u8; 5]) {
     let a: U252 = U252::derive_from_seed(seed);
     let b: Field = to_field(a);
     let c: U252 = U252::from(b);
@@ -554,7 +482,7 @@ fn fuzz_to_from_field_mod_bits_below_254(seed: [u8; 5]) {
 #[test]
 fn fuzz_from_le_bytes(seed: [u8; 5]) {
     let a: U256 = U256::derive_from_seed(seed);
-    let bytes: [u8; 33] = a.to_le_bytes();
+    let bytes: [u8; 32] = a.to_le_bytes();
     let b: U256 = U256::from_le_bytes(bytes);
     assert(a == b);
 }
@@ -562,73 +490,80 @@ fn fuzz_from_le_bytes(seed: [u8; 5]) {
 #[test]
 fn fuzz_to_be_bytes(seed: [u8; 5]) {
     let a: U256 = U256::derive_from_seed(seed);
-    let bytes: [u8; 33] = a.to_be_bytes();
+    let bytes: [u8; 32] = a.to_be_bytes();
     let b: U256 = U256::from_be_bytes(bytes);
     assert(a == b);
 }
 
-// from_be_bytes must reject non-canonical values (>= MOD) via validate_canonical.
-#[test(should_fail)]
-fn test_from_be_bytes_non_canonical() {
-    // Construct bytes for MOD itself (non-canonical zero)
-    let modulus: U256 = U256::modulus();
-    let modulus_bytes: [u8; 33] = modulus.to_be_bytes_unsafe();
-    let _: U256 = U256::from_be_bytes(modulus_bytes);
+// Byte conversions must reject values >= 2^BITS when BITS is not a multiple of 8.
+#[test(should_fail_with = "call to assert_max_bit_size")]
+fn test_from_be_bytes_rejects_out_of_range() {
+    let mut bytes: [u8; 32] = [0; 32];
+    // 2^252
+    bytes[0] = 0x10;
+    let _: U252 = U252::from_be_bytes(bytes);
 }
 
-// from_le_bytes must reject non-canonical values (>= MOD) via validate_canonical.
-#[test(should_fail)]
-fn test_from_le_bytes_non_canonical() {
-    let modulus: U256 = U256::modulus();
-    let modulus_bytes: [u8; 33] = modulus.to_le_bytes_unsafe();
-    let _: U256 = U256::from_le_bytes(modulus_bytes);
+#[test(should_fail_with = "call to assert_max_bit_size")]
+fn test_from_le_bytes_rejects_out_of_range() {
+    let mut bytes: [u8; 32] = [0; 32];
+    // 2^252
+    bytes[31] = 0x10;
+    let _: U252 = U252::from_le_bytes(bytes);
 }
 
-// from_be_bytes_unsafe accepts non-canonical values (>= MOD).
 #[test]
-fn test_from_be_bytes_unsafe_non_canonical() {
-    let modulus: U256 = U256::modulus();
-    let modulus_bytes: [u8; 33] = modulus.to_be_bytes_unsafe();
-    let _: U256 = U256::from_be_bytes_unsafe(modulus_bytes);
+fn test_from_be_bytes_max_U252() {
+    let mut bytes: [u8; 32] = [0xff; 32];
+    bytes[0] = 0x0f;
+    let a: U252 = U252::from_be_bytes(bytes);
+    assert(a == U252::zero() - U252::one());
+    assert(a.to_be_bytes() == bytes);
 }
 
-// from_le_bytes_unsafe accepts non-canonical values (>= MOD).
-#[test]
-fn test_from_le_bytes_unsafe_non_canonical() {
-    let modulus: U256 = U256::modulus();
-    let modulus_bytes: [u8; 33] = modulus.to_le_bytes_unsafe();
-    let _: U256 = U256::from_le_bytes_unsafe(modulus_bytes);
+// 2^BITS is not representable.
+fn test_from_limbs_rejects_two_pow_bits<let N: u32, BN>()
+where
+    BN: BigInt,
+{
+    let _: BN = BN::from_limbs(get_modulus::<<BN as BigInt>::N, <BN as BigInt>::BITS>());
 }
 
-// to_be_bytes must reject non-canonical values (>= MOD) via validate_canonical.
-#[test(should_fail)]
-fn test_to_be_bytes_non_canonical() {
-    let modulus: U256 = U256::modulus();
-    let _: [u8; 33] = modulus.to_be_bytes();
+#[test(should_fail_with = "call to assert_max_bit_size")]
+fn test_from_limbs_rejects_two_pow_bits_U256() {
+    test_from_limbs_rejects_two_pow_bits::<3, U256>();
 }
 
-// to_le_bytes must reject non-canonical values (>= MOD) via validate_canonical.
-#[test(should_fail)]
-fn test_to_le_bytes_non_canonical() {
-    let modulus: U256 = U256::modulus();
-    let _: [u8; 33] = modulus.to_le_bytes();
-}
-
-// to_be_bytes_unsafe accepts non-canonical values (>= MOD).
-#[test]
-fn test_to_be_bytes_unsafe_non_canonical() {
-    let modulus: U256 = U256::modulus();
-    let _: [u8; 33] = modulus.to_be_bytes_unsafe();
-}
-
-// to_le_bytes_unsafe accepts non-canonical values (>= MOD).
-#[test]
-fn test_to_le_bytes_unsafe_non_canonical() {
-    let modulus: U256 = U256::modulus();
-    let _: [u8; 33] = modulus.to_le_bytes_unsafe();
+#[test(should_fail_with = "call to assert_max_bit_size")]
+fn test_from_limbs_rejects_two_pow_bits_U2048() {
+    test_from_limbs_rejects_two_pow_bits::<18, U2048>();
 }
 
 // ------------------------------ COMPARISON TESTS ------------------------------
+
+// `[2^120, 0, 0]` and `[0, 1, 0]` both encode the integer `2^120`. Such unnormalised values can
+// reach `eq` and `cmp` via circuit inputs or unconstrained functions, so these must reject them
+// rather than report the values as distinct.
+#[test(should_fail_with = "call to assert_max_bit_size")]
+fn test_eq_rejects_unnormalised_limbs() {
+    let a: U256 = U256::from_limbs_unsafe([TWO_POW_120, 0, 0]);
+    let b: U256 = U256::from_limbs_unsafe([0, 1, 0]);
+    assert(a != b);
+}
+
+#[test(should_fail_with = "call to assert_max_bit_size")]
+fn test_cmp_rejects_unnormalised_limbs() {
+    let a: U256 = U256::from_limbs_unsafe([TWO_POW_120, 0, 0]);
+    let b: U256 = U256::from_limbs_unsafe([0, 1, 0]);
+    assert(a > b);
+}
+
+#[test(should_fail_with = "call to assert_max_bit_size")]
+fn test_cmp_rejects_unnormalised_limbs_reversed() {
+    let a: U256 = U256::from_limbs_unsafe([TWO_POW_120, 0, 0]);
+    let b: U256 = U256::from_limbs_unsafe([0, 1, 0]);
+    assert(b > a);
+}
 
 fn test_eq<let N: u32, BN>()
 where
@@ -643,33 +578,16 @@ where
     assert(c.eq(a) == false);
 }
 
-fn test_eq_wrap<let N: u32, BN>()
-where
-    BN: BigInt,
-{
-    let a: BN = BN::modulus();
-    let b: BN = BN::zero();
-    assert(a == b);
-}
-
 fn test_is_zero<let N: u32, BN>()
 where
     BN: BigInt,
 {
     let zero: BN = BN::zero();
     assert(zero.is_zero() == true);
-    assert(zero.unsafe_is_zero_integer() == true);
 
     let a: BN = BN::derive_from_seed([1, 2, 3, 4]);
     assert(a.is_zero() == false);
-    assert(a.unsafe_is_zero_integer() == false);
     a.assert_is_not_zero();
-    a.unsafe_assert_is_not_zero_integer();
-
-    let modulus: BN = BN::modulus();
-    assert(modulus.is_zero() == true);
-    assert(modulus.unsafe_is_zero_integer() == false);
-    modulus.unsafe_assert_is_not_zero_integer();
 }
 
 fn test_assert_is_not_equal<let N: u32, BN>()
@@ -690,57 +608,6 @@ where
     let b: BN = BN::derive_from_seed([1, 2, 3, 4]);
 
     a.assert_is_not_equal(&b);
-}
-
-fn test_assert_is_not_equal_overloaded_lhs_fail<let N: u32, BN>()
-where
-    BN: BigInt,
-{
-    let a: BN = BN::derive_from_seed([1, 2, 3, 4]);
-    let b: BN = BN::derive_from_seed([1, 2, 3, 4]);
-
-    let modulus: BN = BN::modulus();
-
-    let t0 = a.get_limbs();
-    let t1 = modulus.get_limbs();
-    // Safety: test code
-    let a_plus_modulus: BN = BN::from_limbs_unsafe(unsafe { __helper_add(&t0, &t1) });
-    a_plus_modulus.assert_is_not_equal(&b);
-}
-
-fn test_assert_is_not_equal_overloaded_rhs_fail<let N: u32, BN>()
-where
-    BN: BigInt,
-{
-    let a: BN = BN::derive_from_seed([1, 2, 3, 4]);
-    let b: BN = BN::derive_from_seed([1, 2, 3, 4]);
-
-    let modulus: BN = BN::modulus();
-
-    let t0 = b.get_limbs();
-    let t1 = modulus.get_limbs();
-    // Safety: test code
-    let b_plus_modulus = BN::from_limbs_unsafe(unsafe { __helper_add(&t0, &t1) });
-    a.assert_is_not_equal(&b_plus_modulus);
-}
-
-fn test_assert_is_not_equal_overloaded_fail<let N: u32, BN>()
-where
-    BN: BigInt,
-{
-    let a: BN = BN::derive_from_seed([1, 2, 3, 4]);
-    let b: BN = BN::derive_from_seed([1, 2, 3, 4]);
-
-    let modulus: BN = BN::modulus();
-
-    let t0 = a.get_limbs();
-    let t1 = b.get_limbs();
-    let t2 = modulus.get_limbs();
-    // Safety: test code
-    let a_plus_modulus: BN = BN::from_limbs_unsafe(unsafe { __helper_add(&t0, &t2) });
-    // Safety: test code
-    let b_plus_modulus: BN = BN::from_limbs_unsafe(unsafe { __helper_add(&t1, &t2) });
-    a_plus_modulus.assert_is_not_equal(&b_plus_modulus);
 }
 
 #[test]
@@ -790,7 +657,7 @@ fn test_cmp_gt_U256_fail() {
 #[test]
 fn test_cmp_U256_fuzz(seed: [u8; 5]) {
     let mut a: U256 = U256::derive_from_seed(seed);
-    let modulus_sub_1_div_2: U256 = (U256::modulus() - U256::one()) / U256::from(2);
+    let modulus_sub_1_div_2: U256 = U256::from_limbs(U256_MAX) / U256::from(2);
 
     a = if a > modulus_sub_1_div_2 {
         U256::from_limbs(U256_MAX) - a
@@ -816,14 +683,6 @@ fn fuzz_cmp_equal(seed: [u8; 5]) {
     assert(c == false);
 }
 
-fn test_validate_canonical_modulus_fail<let N: u32, BN>()
-where
-    BN: BigInt,
-{
-    let modulus: BN = BN::modulus();
-    modulus.validate_canonical();
-}
-
 // ------------------------------ ARITHMETIC TESTS ------------------------------
 
 #[test]
@@ -847,9 +706,7 @@ where
     let b: BN = BN::derive_from_seed([4, 5, 6, 7]);
     let one: BN = BN::one();
     a.validate_in_range();
-    a.validate_canonical();
     b.validate_in_range();
-    b.validate_canonical();
 
     let mut c: BN = (a + b);
     c += c;
@@ -891,61 +748,11 @@ fn test_add_U256_wrap_around() {
 }
 
 #[test]
-fn test_add_modulus_limit() {
-    // p + 2^{257} - 1 should be the maximum allowed value fed into an add operation
-    // when adding, if the result overflows the modulus, we conditionally subtract the modulus, producing 2^{257} - 1
-    // this is the largest value that will satisfy the range check applied when constructing a bigint
-    let p: [u128; 3] = U256::modulus().get_limbs();
-    let a: U256 = U256::from_limbs(p);
-    let b: U256 = U256::from_limbs(U256_MAX_REPRESENTABLE);
-    let result = a + b;
-    assert(result == b);
-}
-
-#[test(should_fail_with = "call to assert_max_bit_size")]
-fn test_add_modulus_overflow() {
-    // (2^{257} - 1) + (p + 1) = 2^{257} + p
-    // after subtracting modulus, result is 2^{257} which does not satisfy the range check applied when constructing a BigInt
-    let p: [u128; 3] = U256::modulus().get_limbs();
-    let one = [1, 0, 0];
-    // Safety: test code
-    let a: U256 = U256::from_limbs(unsafe { __helper_add(&p, &one) });
-    let b: U256 = U256::from_limbs(U256_MAX_REPRESENTABLE);
-    let result = a + b;
-    assert(result == b);
-}
-
-#[test]
 fn test_sub_U256() {
     // 0 - 1 should equal 2^256 - 1
     let a: U256 = U256::zero();
     let b: U256 = U256::one();
     let expected: U256 = U256::from_limbs(U256_MAX);
-    let result: U256 = a - b;
-    assert(result == expected);
-}
-
-#[test]
-fn test_sub_modulus_limit() {
-    // if we underflow, maximum result should be ...
-    // 0 - 1 = p - 1
-    // 0 - p = 0
-    let a: U256 = U256::zero();
-    let b: U256 = U256::modulus();
-    let expected: U256 = U256::zero();
-
-    let result = a - b;
-    assert(result == expected);
-}
-
-#[test(should_fail_with = "call to assert_max_bit_size")]
-fn test_sub_modulus_underflow() {
-    // 0 - (p + 1) is smaller than p and should produce unsatisfiable constraints
-    let a: U256 = U256::zero();
-    let mut b: U256 = U256::modulus();
-    b.set_limb(0, b.get_limb(0) + 1);
-    let expected: U256 = U256::one();
-
     let result: U256 = a - b;
     assert(result == expected);
 }
@@ -974,7 +781,7 @@ where
 
 #[test]
 fn test_mul_U256_with_one() {
-    let a: U256 = U256::modulus() - (U256::one() + U256::one());
+    let a: U256 = U256::zero() - (U256::one() + U256::one());
     let b: U256 = U256::one();
     let c: U256 = a * b;
     assert(c == a);
@@ -1038,11 +845,6 @@ fn test_eq_U256() {
 }
 
 #[test]
-fn test_eq_wrap_U256() {
-    test_eq_wrap::<3, U256>();
-}
-
-#[test]
 fn test_is_zero_U256() {
     test_is_zero::<3, U256>();
 }
@@ -1055,26 +857,6 @@ fn test_assert_is_not_equal_U256() {
 #[test(should_fail_with = "assert_is_not_equal fail")]
 fn test_assert_is_not_equal_fail_U256() {
     test_assert_is_not_equal_fail::<3, U256>();
-}
-
-#[test(should_fail_with = "assert_is_not_equal fail")]
-fn test_assert_is_not_equal_overloaded_lhs_fail_U256() {
-    test_assert_is_not_equal_overloaded_lhs_fail::<3, U256>();
-}
-
-#[test(should_fail_with = "assert_is_not_equal fail")]
-fn test_assert_is_not_equal_overloaded_rhs_fail_U256() {
-    test_assert_is_not_equal_overloaded_rhs_fail::<3, U256>();
-}
-
-#[test(should_fail_with = "assert_is_not_equal fail")]
-fn test_assert_is_not_equal_overloaded_fail_U256() {
-    test_assert_is_not_equal_overloaded_fail::<3, U256>();
-}
-
-#[test(should_fail_with = "assert_is_not_zero_integer fail")]
-fn test_validate_canonical_modulus_fail_U256() {
-    test_validate_canonical_modulus_fail::<3, U256>();
 }
 
 #[test]
@@ -1105,11 +887,6 @@ fn test_eq_U2048() {
 }
 
 #[test]
-fn test_eq_wrap_U2048() {
-    test_eq_wrap::<18, U2048>();
-}
-
-#[test]
 fn test_is_zero_U2048() {
     test_is_zero::<18, U2048>();
 }
@@ -1122,26 +899,6 @@ fn test_assert_is_not_equal_U2048() {
 #[test(should_fail_with = "assert_is_not_equal fail")]
 fn test_assert_is_not_equal_fail_U2048() {
     test_assert_is_not_equal_fail::<18, U2048>();
-}
-
-#[test(should_fail_with = "assert_is_not_equal fail")]
-fn test_assert_is_not_equal_overloaded_lhs_fail_U2048() {
-    test_assert_is_not_equal_overloaded_lhs_fail::<18, U2048>();
-}
-
-#[test(should_fail_with = "assert_is_not_equal fail")]
-fn test_assert_is_not_equal_overloaded_rhs_fail_U2048() {
-    test_assert_is_not_equal_overloaded_rhs_fail::<18, U2048>();
-}
-
-#[test(should_fail_with = "assert_is_not_equal fail")]
-fn test_assert_is_not_equal_overloaded_fail_U2048() {
-    test_assert_is_not_equal_overloaded_fail::<18, U2048>();
-}
-
-#[test(should_fail_with = "assert_is_not_zero_integer fail")]
-fn test_validate_canonical_modulus_fail_U2048() {
-    test_validate_canonical_modulus_fail::<18, U2048>();
 }
 
 #[test]
