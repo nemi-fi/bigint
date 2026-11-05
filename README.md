@@ -12,7 +12,7 @@ Efficient constrained and unconstrained arithmetic over large unsigned integers 
 The Noir standard library provides unsigned integers up to 128 bits and a native `Field` of ~254 bits. This library provides fixed-width unsigned integers of 256 bits and above.
 
 > [!NOTE]
-> This library is derived from [noir-bignum](https://github.com/noir-lang/noir-bignum), with all finite-field functionality removed. Arithmetic is currently **wrapping** (i.e. performed modulo `2^BITS`). The goal of this library is to provide **checked** arithmetic, where overflow and underflow cause constraint failures. Until then, treat all operators as wrapping.
+> This library is derived from [noir-bignum](https://github.com/noir-lang/noir-bignum), with all finite-field functionality removed. This library provides **checked** arithmetic, where overflow and underflow cause constraint failures. `+` and `-` are checked; `*` and `evaluate_quadratic_expression` currently still wrap (i.e. are performed modulo `2^BITS`).
 
 ## Noir version compatibility
 
@@ -82,7 +82,8 @@ At least two limbs are required. Single-limb types are not supported.
 
 The overloaded operators are constrained:
 
-- `+`, `-`, `*`: arithmetic modulo $2^X$ (wrapping)
+- `+`, `-`: checked addition and subtraction, which fail if the result overflows $2^X$ or is negative
+- `*`: multiplication modulo $2^X$ (wrapping)
 - `/`, `%`: integer division (rounding down) and remainder, which fail if the divisor is zero
 - `==`: equality
 - `<`, `<=`, `>`, `>=`: integer comparison

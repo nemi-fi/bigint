@@ -3,12 +3,11 @@ use crate::constants::{GRUMPKIN_MODULUS, TWO_POW_120, TWO_POW_240};
 use crate::fns::{
     expressions::{evaluate_quadratic_expression, validate_div_rem_expression},
     unconstrained_helpers::{
-        __from_field, compute_add_flags, compute_borrow_flags, compute_gte_flags, compute_sub_flags,
+        __from_field, compute_borrow_flags, compute_carry_flags, compute_gte_flags,
+        compute_sub_borrow_flags,
     },
     unconstrained_ops::{__add, __div_rem, __mul, __sub},
 };
-
-use crate::fns::modulus::get_modulus;
 
 use std::cmp::Ordering;
 
@@ -350,145 +349,44 @@ pub(crate) fn validate_gt<let N: u32, let BITS: u32>(lhs: &[u128; N], rhs: &[u12
 ///
 /// Also validates that the result is a valid BigInt value (each limb in range).
 /// If lhs < rhs, the result will have a negative value (wrapped in Field) and fail validation.
-fn assert_sub_no_overflow<let N: u32, let BITS: u32>(
+pub(crate) fn assert_sub_no_overflow<let N: u32, let BITS: u32>(
     lhs: &[u128; N],
     rhs: &[u128; N],
     borrow_flags: &[bool; N - 1],
 ) -> [u128; N] {
-    let mut result: [u128; N] = [0; N];
+    let mut limbs: [Field; N] = [0; N];
 
     // Compute first limb
-    let limb_0: Field =
+    limbs[0] =
         (lhs[0] as Field) - (rhs[0] as Field) + (borrow_flags[0] as Field) * (TWO_POW_120 as Field);
-    limb_0.assert_max_bit_size::<128>();
-    result[0] = limb_0 as u128;
 
     // Compute middle limbs
     for i in 1..N - 1 {
-        let limb_i: Field = (lhs[i] as Field) - (rhs[i] as Field)
+        limbs[i] = (lhs[i] as Field) - (rhs[i] as Field)
             + (borrow_flags[i] as Field) * (TWO_POW_120 as Field)
             - (borrow_flags[i - 1] as Field);
-        limb_i.assert_max_bit_size::<128>();
-        result[i] = limb_i as u128;
     }
 
     // Compute last limb
-    let limb_last: Field =
-        (lhs[N - 1] as Field) - (rhs[N - 1] as Field) - (borrow_flags[N - 2] as Field);
-    limb_last.assert_max_bit_size::<128>();
-    result[N - 1] = limb_last as u128;
+    limbs[N - 1] = (lhs[N - 1] as Field) - (rhs[N - 1] as Field) - (borrow_flags[N - 2] as Field);
 
     // Validate that the result is a valid BigInt value (120-bit limbs, TOP_LIMB_BITS for last)
-    validate_in_range::<N, BITS>(&result);
-
-    result
+    field_limbs_to_bigint::<N, BITS>(limbs)
 }
 
-/// Compute the result of modular subtraction given flags and validate it
+/// Range-checks limbs computed as `Field` elements and converts them to a `BigInt` value.
 ///
-/// Computes `result = lhs - rhs + (underflow ? modulus : 0)` given carry and borrow flags.
-/// The formula for each limb is:
-///     result[0]     = lhs[0]     - rhs[0]     + addend[0]     + bf[0] * 2^120 - cf[0] * 2^120
-///     result[i]     = lhs[i]     - rhs[i]     + addend[i]     + bf[i] * 2^120 - cf[i] * 2^120 - bf[i-1] + cf[i-1],  i = 1..N-2
-///     result[N - 1] = lhs[N - 1] - rhs[N - 1] + addend[N - 1]                               - bf[N-2] + cf[N-2]
-///
-/// Also validates that the result is a valid BigInt value (each limb in range).
-fn compute_sub_result<let N: u32, let BITS: u32>(
-    modulus: &[u128; N],
-    lhs: &[u128; N],
-    rhs: &[u128; N],
-    carry_flags: &[bool; N - 1],
-    borrow_flags: &[bool; N - 1],
-    underflow: bool,
-) -> [u128; N] {
-    let addend: [u128; N] = if underflow { *modulus } else { [0; N] };
-
+/// Limbs `0..N-1` are constrained to 120 bits and the top limb to `BITS - 120 * (N - 1)` bits.
+/// Range-checking the `Field` values before casting them to `u128` ensures that the cast cannot
+/// truncate.
+fn field_limbs_to_bigint<let N: u32, let BITS: u32>(limbs: [Field; N]) -> [u128; N] {
     let mut result: [u128; N] = [0; N];
-
-    // Compute first limb
-    let limb_0: Field = (lhs[0] as Field) - (rhs[0] as Field)
-        + (addend[0] as Field)
-        + (borrow_flags[0] as Field) * (TWO_POW_120 as Field)
-        - (carry_flags[0] as Field) * (TWO_POW_120 as Field);
-    limb_0.assert_max_bit_size::<128>();
-    result[0] = limb_0 as u128;
-
-    // Compute middle limbs
-    for i in 1..N - 1 {
-        let limb_i: Field = (lhs[i] as Field) - (rhs[i] as Field)
-            + (addend[i] as Field)
-            + (borrow_flags[i] as Field) * (TWO_POW_120 as Field)
-            - (carry_flags[i] as Field) * (TWO_POW_120 as Field)
-            - (borrow_flags[i - 1] as Field)
-            + (carry_flags[i - 1] as Field);
-        limb_i.assert_max_bit_size::<128>();
-        result[i] = limb_i as u128;
+    for i in 0..N - 1 {
+        limbs[i].assert_max_bit_size::<120>();
+        result[i] = limbs[i] as u128;
     }
-
-    // Compute last limb
-    let limb_last: Field = (lhs[N - 1] as Field) - (rhs[N - 1] as Field) + (addend[N - 1] as Field)
-        - (borrow_flags[N - 2] as Field)
-        + (carry_flags[N - 2] as Field);
-    limb_last.assert_max_bit_size::<128>();
-    result[N - 1] = limb_last as u128;
-
-    // Validate that the result is a valid BigInt value (120-bit limbs, TOP_LIMB_BITS for last)
-    validate_in_range::<N, BITS>(&result);
-
-    result
-}
-
-/// Compute the result of modular addition given flags and validate it
-///
-/// Computes `result = lhs + rhs - (overflow ? modulus : 0)` given carry and borrow flags.
-/// The formula for each limb is:
-///     result[0]     = lhs[0]     + rhs[0]     - subtrahend[0]     + bf[0] * 2^120 - cf[0] * 2^120
-///     result[i]     = lhs[i]     + rhs[i]     - subtrahend[i]     + bf[i] * 2^120 - cf[i] * 2^120 - bf[i-1] + cf[i-1],  i = 1..N-2
-///     result[N - 1] = lhs[N - 1] + rhs[N - 1] - subtrahend[N - 1]                               - bf[N-2] + cf[N-2]
-///
-/// Also validates that the result is a valid BigInt value (each limb in range).
-fn compute_add_result<let N: u32, let BITS: u32>(
-    modulus: &[u128; N],
-    lhs: &[u128; N],
-    rhs: &[u128; N],
-    carry_flags: &[bool; N - 1],
-    borrow_flags: &[bool; N - 1],
-    overflow: bool,
-) -> [u128; N] {
-    let subtrahend: [u128; N] = if overflow { *modulus } else { [0; N] };
-
-    let mut result: [u128; N] = [0; N];
-
-    // Compute first limb
-    let limb_0: Field = (lhs[0] as Field) + (rhs[0] as Field) - (subtrahend[0] as Field)
-        + (borrow_flags[0] as Field) * (TWO_POW_120 as Field)
-        - (carry_flags[0] as Field) * (TWO_POW_120 as Field);
-    limb_0.assert_max_bit_size::<128>();
-    result[0] = limb_0 as u128;
-
-    // Compute middle limbs
-    for i in 1..N - 1 {
-        let limb_i: Field = (lhs[i] as Field) + (rhs[i] as Field)
-            - (subtrahend[i] as Field)
-            - (borrow_flags[i - 1] as Field)
-            + (carry_flags[i - 1] as Field)
-            + (borrow_flags[i] as Field) * (TWO_POW_120 as Field)
-            - (carry_flags[i] as Field) * (TWO_POW_120 as Field);
-        limb_i.assert_max_bit_size::<128>();
-        result[i] = limb_i as u128;
-    }
-
-    // Compute last limb
-    let limb_last: Field = (lhs[N - 1] as Field) + (rhs[N - 1] as Field)
-        - (subtrahend[N - 1] as Field)
-        - (borrow_flags[N - 2] as Field)
-        + (carry_flags[N - 2] as Field);
-    limb_last.assert_max_bit_size::<128>();
-    result[N - 1] = limb_last as u128;
-
-    // Validate that the result is a valid BigInt value (120-bit limbs, TOP_LIMB_BITS for last)
-    validate_in_range::<N, BITS>(&result);
-
+    limbs[N - 1].assert_max_bit_size::<BITS - (N - 1) * 120>();
+    result[N - 1] = limbs[N - 1] as u128;
     result
 }
 
@@ -529,232 +427,6 @@ pub fn cmp<let N: u32, let BITS: u32>(lhs: &[u128; N], rhs: &[u128; N]) -> Order
 
 // ------------------------------ ARITHMETIC FUNCTIONS ------------------------------
 
-/// Add two `BigInt` values
-///
-/// Computes `result = lhs + rhs` using limb-wise addition with carry flags,
-/// and an optional subtraction of `MOD` using borrow flags. The function then
-/// constrains:
-///   - all `result` limbs to be a valid `BigInt` value, and
-///   - the addition/subtraction relation with the carry/borrow flags and the
-///     `overflow_modulus` bit.
-///
-/// ## Assumptions
-/// - All limbs of `lhs`, `rhs` and `MOD` are valid `BigInt` limbs
-///   (120-bit for non-top limbs, `TOP_LIMB_BITS` for the top limb).
-/// - Semantically, we intend to use this only with `0 <= lhs, rhs < MOD`,
-///   even though the limb/range constraints allow values up to `< 2^{BITS}`.
-///
-/// ## Soundness (intended relation)
-/// This function constrains the following equations:
-///
-///     result[0]     = lhs[0]     + rhs[0]
-///                     - sub[0]
-///                     + bf[0] * 2^{120}
-///                     - cf[0]                                        < 2^{120}
-///
-///     result[i]     = lhs[i]     + rhs[i]
-///                     - sub[i]
-///                     + bf[i] * 2^{120}  - bf[i - 1]
-///                     - cf[i] * 2^{120}  + cf[i - 1]                 < 2^{120},
-///                     for i = 1..N-2
-///
-///     result[N - 1] = lhs[N - 1] + rhs[N - 1]
-///                     - sub[N - 1]
-///                     - bf[N - 2]
-///                     + cf[N - 2]                                   < 2^{TOP_LIMB_BITS}
-///
-/// where:
-///   - `bf[i]` are the borrow flags of the optional subtraction,
-///   - `cf[i]` are the carry flags of the addition, and
-///   - `sub` is either the zero vector or `MOD`, depending on the
-///     `overflow_modulus` flag:
-///         * `overflow_modulus = 0`  =>  `sub = 0`
-///         * `overflow_modulus = 1`  =>  `sub = MOD`
-///
-/// If `lhs`, `rhs` and `MOD` are valid `BigInt` limbs and the witness for
-/// `(bf, cf, overflow_modulus)` is the honest one produced by `compute_add_flags`,
-/// these constraints enforce:
-///   - a valid limb-wise carry chain for `lhs + rhs`, and
-///   - a valid limb-wise subtraction chain for either `lhs + rhs` or
-///     `lhs + rhs - MOD`, with no underflow in any limb.
-///
-/// Under these assumptions the constrained result equals:
-///
-///     result = lhs + rhs (mod MOD)
-///
-/// in the intended arithmetic.
-///
-/// ## Limitations / extra satisfying witnesses
-///
-/// The constraint system itself does **not** uniquely determine the carry/borrow
-/// flags nor the `overflow_modulus` bit:
-///
-/// - For each limb `i`, `bf[i]` and `cf[i]` only appear in the combination
-///   `bf[i] * 2^{120} - cf[i] * 2^{120}`. This means that both
-///
-///       (bf[i], cf[i]) = (0, 0)  and  (bf[i], cf[i]) = (1, 1)
-///
-///   give the same contribution to the equation. As a result, there are multiple
-///   valid flag assignments for the *same* `lhs`, `rhs`, `sub` and `result`.
-///
-/// - More importantly, if `lhs + rhs` is greater than `MOD` but still strictly
-///   less than `2^{BITS}`, there exist *spurious* witnesses where:
-///     * `overflow_modulus` is set inconsistently with the true arithmetic
-///       overflow, and
-///     * the `(bf, cf)` flags are adjusted accordingly,
-///
-///   such that all equations above still hold and all `result` limbs remain
-///   within range. In particular, when
-///
-///       lhs + rhs + MOD < 2^{BITS},
-///
-///   a malicious prover can "hide" an extra `MOD` inside the choice of
-///   `overflow_modulus`, `bf` and `cf`, so that the circuit is satisfied by a
-///   witness
-///
-/// ## Completeness
-///
-/// For inputs in the range `0 <= lhs, rhs < MOD` and honest flags from
-/// `compute_add_flags`, the constraints are complete: every valid `BigInt` sum
-/// `lhs + rhs (mod MOD)` admits a satisfying assignment.
-///
-/// Inputs with `lhs` or `rhs` in `[MOD, 2^{BITS})` are still representable
-/// as limb arrays and may admit satisfying witnesses, but then the operation
-/// no longer corresponds to a unique, well-defined addition in the field
-/// `Z / MOD Z`. Such uses are outside the intended semantics of this function.
-pub fn add<let N: u32, let BITS: u32>(lhs: &[u128; N], rhs: &[u128; N]) -> [u128; N] {
-    if std::runtime::is_unconstrained() {
-        // Safety: unconstrained runtime requires no constraints
-        unsafe {
-            __add(&get_modulus::<N, BITS>(), lhs, rhs)
-        }
-    } else {
-        let modulus = get_modulus::<N, BITS>();
-        // Safety: flags are constrained by `compute_add_result`:
-        // - incorrect flags cause computed limbs to fail 128-bit range checks
-        // - wrong overflow causes result to be off by modulus, failing `validate_in_range`
-        let (carry_flags, borrow_flags, overflow): ([bool; N - 1], [bool; N - 1], bool) =
-            unsafe { compute_add_flags(&modulus, lhs, rhs) };
-
-        // Compute and validate the result in constrained code
-        compute_add_result::<N, BITS>(&modulus, lhs, rhs, &carry_flags, &borrow_flags, overflow)
-    }
-}
-
-/// Subtract two `BigInt` values
-///
-/// Computes `result = lhs - rhs` using limb-wise subtraction with borrow flags,
-/// and an optional addition of `MOD` using carry flags. The function then
-/// constrains:
-///   - all `result` limbs to be a valid `BigInt` value, and
-///   - the subtraction/addition relation with the carry/borrow flags and the
-///     `underflow_modulus` bit.
-///
-/// ## Assumptions
-/// - All limbs of `lhs`, `rhs` and `MOD` are valid `BigInt` limbs
-///   (120-bit for non-top limbs, `TOP_LIMB_BITS` for the top limb).
-/// - Semantically, we intend to use this only with `0 <= lhs, rhs < MOD`,
-///   even though the limb/range constraints allow values up to `< 2^{BITS}`.
-///
-/// ## Soundness (intended relation)
-/// This function constrains the following equations:
-///
-///     result[0]     = lhs[0]     - rhs[0]
-///                     + add[0]
-///                     + bf[0] * 2^{120}
-///                     - cf[0]                                        < 2^{120}
-///
-///     result[i]     = lhs[i]     - rhs[i]
-///                     + add[i]
-///                     + bf[i] * 2^{120}  - bf[i - 1]
-///                     - cf[i] * 2^{120}  + cf[i - 1]                 < 2^{120},
-///                     for i = 1..N-2
-///
-///     result[N - 1] = lhs[N - 1] - rhs[N - 1]
-///                     + add[N - 1]
-///                     - bf[N - 2]
-///                     + cf[N - 2]                                   < 2^{TOP_LIMB_BITS}
-///
-/// where:
-///   - `bf[i]` are the borrow flags of the subtraction,
-///   - `cf[i]` are the carry flags of the optional addition, and
-///   - `add` is either the zero vector or `MOD`, depending on the
-///     `underflow_modulus` flag:
-///         * `underflow_modulus = 0`  =>  `add = 0`
-///         * `underflow_modulus = 1`  =>  `add = MOD`
-///
-/// If `lhs`, `rhs` and `MOD` are valid `BigInt` limbs and the witness for
-/// `(bf, cf, underflow_modulus)` is the honest one produced by `compute_sub_flags`,
-/// these constraints enforce:
-///   - a valid limb-wise borrow chain for `lhs - rhs`, and
-///   - a valid limb-wise addition chain for either `lhs - rhs` or
-///     `lhs - rhs + MOD`, with no underflow in any limb.
-///
-/// Under these assumptions the constrained result equals:
-///
-///     result = lhs - rhs (mod MOD)
-///
-/// in the intended arithmetic.
-///
-/// ## Limitations / extra satisfying witnesses
-///
-/// The constraint system itself does **not** uniquely determine the carry/borrow
-/// flags nor the `underflow_modulus` bit:
-///
-/// - For each limb `i`, `bf[i]` and `cf[i]` only appear in the combination
-///   `bf[i] * 2^{120} - cf[i] * 2^{120}`. This means that both
-///
-///       (bf[i], cf[i]) = (0, 0)  and  (bf[i], cf[i]) = (1, 1)
-///
-///   give the same contribution to the equation. As a result, there are multiple
-///   valid flag assignments for the *same* `lhs`, `rhs`, `add` and `result`.
-///
-/// - More importantly, when `lhs < rhs`, the true field result is
-///
-///       lhs - rhs + MOD,
-///
-///   and as long as
-///
-///       lhs - rhs + MOD < 2^{BITS},
-///
-///   a malicious prover can:
-///     * set `underflow_modulus` inconsistently with the true underflow, and
-///     * adjust the `(bf, cf)` flags accordingly,
-///
-///   such that all equations above still hold and all `result` limbs remain
-///   within range. In other words, the circuit can be satisfied by a witness
-///   that does **not** correspond to the unique intended subtraction modulo
-///   `MOD` for some inputs with `lhs < rhs`.
-///
-/// ## Completeness
-///
-/// For inputs in the range `0 <= lhs, rhs < MOD` and honest flags from
-/// `compute_sub_flags`, the constraints are complete: every valid `BigInt`
-/// difference `lhs - rhs (mod MOD)` admits a satisfying assignment.
-///
-/// Inputs with `lhs` or `rhs` in `[MOD, 2^{BITS})` are still representable
-/// as limb arrays and may admit satisfying witnesses, but then the operation
-/// no longer corresponds to a unique, well-defined subtraction in the field
-/// `Z / MOD Z`. Such uses are outside the intended semantics of this function.
-pub fn sub<let N: u32, let BITS: u32>(lhs: &[u128; N], rhs: &[u128; N]) -> [u128; N] {
-    if std::runtime::is_unconstrained() {
-        // Safety: unconstrained runtime requires no constraints
-        unsafe {
-            __sub(&get_modulus::<N, BITS>(), lhs, rhs)
-        }
-    } else {
-        let modulus = get_modulus::<N, BITS>();
-        // Safety: flags are constrained by `compute_sub_result`:
-        // - incorrect flags cause computed limbs to fail 128-bit range checks
-        // - wrong underflow causes result to be off by modulus, failing `validate_in_range`
-        let (carry_flags, borrow_flags, underflow): ([bool; N - 1], [bool; N - 1], bool) =
-            unsafe { compute_sub_flags(&modulus, lhs, rhs) };
-
-        // Compute and validate the result in constrained code
-        compute_sub_result::<N, BITS>(&modulus, lhs, rhs, &carry_flags, &borrow_flags, underflow)
-    }
-}
-
 /// Compute the `BigInt` multiplication
 ///
 /// Computes `result = lhs * rhs (mod MOD)` by:
@@ -790,6 +462,81 @@ pub fn mul<let N: u32, let BITS: u32>(lhs: [u128; N], rhs: [u128; N]) -> [u128; 
         );
     }
     result
+}
+
+/// Add two `BigInt` values, failing if the sum overflows `2^BITS`.
+///
+/// Computes `result = lhs + rhs` limb-wise with carry flags provided by the prover:
+///
+///     result[0]     = lhs[0]     + rhs[0]                - c[0]     * 2^{120}
+///     result[i]     = lhs[i]     + rhs[i]     + c[i - 1] - c[i]     * 2^{120}
+///     result[N - 1] = lhs[N - 1] + rhs[N - 1] + c[N - 2]
+///
+/// and range-checks every limb of `result`.
+///
+/// ## Soundness
+/// The carries telescope, so `\sum result[i] * 2^{120 i} = lhs + rhs` over the integers (each
+/// limb is far below the circuit field modulus, so no wraparound occurs). The range checks then
+/// enforce `0 <= result < 2^BITS`, so `result` is the unique valid representation of `lhs + rhs`,
+/// and an overflowing sum fails the range check on the top limb. Incorrect carry flags make a
+/// limb negative (i.e. a large `Field` element) or `>= 2^{120}`, and also fail.
+///
+/// This holds for any input limbs below `2^{128}`, i.e. the inputs do not need to be normalised.
+pub fn add<let N: u32, let BITS: u32>(lhs: &[u128; N], rhs: &[u128; N]) -> [u128; N] {
+    if std::runtime::is_unconstrained() {
+        // Safety: unconstrained runtime requires no constraints
+        unsafe {
+            __add::<N, BITS>(lhs, rhs)
+        }
+    } else {
+        // Safety: the carry flags are constrained by `assert_add_no_overflow`
+        let carry_flags: [bool; N - 1] = unsafe { compute_carry_flags::<N, BITS>(lhs, rhs) };
+
+        assert_add_no_overflow::<N, BITS>(lhs, rhs, &carry_flags)
+    }
+}
+
+/// Compute `lhs + rhs` from prover-provided carry flags, and constrain it not to overflow `2^BITS`.
+///
+/// See `add` for the soundness argument: any carry flags which do not yield the unique valid
+/// representation of `lhs + rhs`, or a sum `>= 2^BITS`, fail the range checks.
+pub(crate) fn assert_add_no_overflow<let N: u32, let BITS: u32>(
+    lhs: &[u128; N],
+    rhs: &[u128; N],
+    carry_flags: &[bool; N - 1],
+) -> [u128; N] {
+    let mut limbs: [Field; N] = [0; N];
+    limbs[0] =
+        (lhs[0] as Field) + (rhs[0] as Field) - (carry_flags[0] as Field) * (TWO_POW_120 as Field);
+    for i in 1..N - 1 {
+        limbs[i] = (lhs[i] as Field) + (rhs[i] as Field) + (carry_flags[i - 1] as Field)
+            - (carry_flags[i] as Field) * (TWO_POW_120 as Field);
+    }
+    limbs[N - 1] = (lhs[N - 1] as Field) + (rhs[N - 1] as Field) + (carry_flags[N - 2] as Field);
+
+    field_limbs_to_bigint::<N, BITS>(limbs)
+}
+
+/// Subtract two `BigInt` values, failing if `rhs > lhs`.
+///
+/// Computes `result = lhs - rhs` limb-wise with borrow flags provided by the prover, and
+/// range-checks every limb of `result`. See `assert_sub_no_overflow`.
+///
+/// ## Soundness
+/// As for `add`, the borrows telescope, so `\sum result[i] * 2^{120 i} = lhs - rhs` over the
+/// integers, and the range checks enforce `0 <= result < 2^BITS`. If `rhs > lhs`, the top limb
+/// is negative, i.e. a large `Field` element, and fails its range check.
+pub fn sub<let N: u32, let BITS: u32>(lhs: &[u128; N], rhs: &[u128; N]) -> [u128; N] {
+    if std::runtime::is_unconstrained() {
+        // Safety: unconstrained runtime requires no constraints
+        unsafe {
+            __sub::<N, BITS>(lhs, rhs)
+        }
+    } else {
+        // Safety: the borrow flags are constrained by `assert_sub_no_overflow`
+        let borrow_flags: [bool; N - 1] = unsafe { compute_sub_borrow_flags(lhs, rhs) };
+        assert_sub_no_overflow::<N, BITS>(lhs, rhs, &borrow_flags)
+    }
 }
 
 /// Compute the `BigInt` integer division with remainder

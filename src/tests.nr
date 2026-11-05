@@ -2,10 +2,12 @@ use crate::bigint::BigInt;
 use crate::bigint::derive_bigint;
 use crate::bigint::{evaluate_quadratic_expression, to_field};
 use crate::constants::{GRUMPKIN_MODULUS, TWO_POW_120, TWO_POW_240};
-use crate::fns::constrained_ops::{from_field, validate_gt};
+use crate::fns::constrained_ops::{
+    assert_add_no_overflow, assert_sub_no_overflow, from_field, validate_gt,
+};
 use crate::fns::expressions::{assert_product_limbs_fit_in_246_bits, validate_div_rem_expression};
 use crate::fns::modulus::get_modulus;
-use crate::fns::unconstrained_helpers::__helper_add;
+use crate::fns::unconstrained_helpers::{__helper_add, __helper_sub};
 
 use crate::types::U1024::U1024;
 use crate::types::U2048::U2048;
@@ -73,7 +75,7 @@ fn test_evaluate_quadratic_expression_add_rejects_hidden_two_pow_bits_fuzz(
 
     // compute honest z = x + y (mod MOD)
     // Safety: test code
-    let mut z_: [u128; 3] = unsafe { x.__add(&y).get_limbs() };
+    let mut z_: [u128; 3] = unsafe { __helper_add(&x.get_limbs(), &y.get_limbs()) };
     // Safety: test code
     z_ = unsafe { __helper_add(&z_, &modulus) };
     // Safety: test code
@@ -631,7 +633,7 @@ fn test_to_field_bits_below_254() {
     // the largest representable value, `2^252 - 1`
     let U252_MODULUS_MINUS_ONE: Field =
         0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
-    let max = U252::zero() - U252::one();
+    let max = U252::from_limbs([TWO_POW_120 - 1, TWO_POW_120 - 1, 0xfff]);
     assert_eq(to_field(max), U252_MODULUS_MINUS_ONE);
 }
 
@@ -695,7 +697,7 @@ fn test_from_be_bytes_max_U252() {
     let mut bytes: [u8; 32] = [0xff; 32];
     bytes[0] = 0x0f;
     let a: U252 = U252::from_be_bytes(bytes);
-    assert(a == U252::zero() - U252::one());
+    assert(a == U252::from_limbs([TWO_POW_120 - 1, TWO_POW_120 - 1, 0xfff]));
     assert(a.to_be_bytes() == bytes);
 }
 
@@ -876,12 +878,25 @@ fn test_do_nothing() {
     assert(c == e.get_limbs());
 }
 
+// Derive a value from `seed` which only uses the lower `(N - 1) / 2` limbs, so that the
+// identities in `test_add`, `test_mul` and `test_sqr` (e.g. `(a + b)^2`) do not overflow.
+fn small_from_seed<BN, let SeedBytes: u32>(seed: [u8; SeedBytes]) -> BN
+where
+    BN: BigInt,
+{
+    let mut value: BN = derive_from_seed(seed);
+    for i in (<BN as BigInt>::N - 1) / 2..<BN as BigInt>::N {
+        value.set_limb(i, 0);
+    }
+    value
+}
+
 fn test_add<let N: u32, BN>()
 where
     BN: BigInt,
 {
-    let a: BN = derive_from_seed([1, 2, 3, 4]);
-    let b: BN = derive_from_seed([4, 5, 6, 7]);
+    let a: BN = small_from_seed([1, 2, 3, 4]);
+    let b: BN = small_from_seed([4, 5, 6, 7]);
     let one: BN = BN::one();
     a.validate_in_range();
     b.validate_in_range();
@@ -898,49 +913,109 @@ where
     assert_eq(limbs, true_limbs);
 }
 
-#[test]
-fn test_add_U256_max() {
-    // (2^256 - 1) + (2^256 - 1) = 2^256 - 2 (mod 2^256)
-    let a: U256 = U256::from_limbs(U256_MAX);
-    let b: U256 = U256::from_limbs(U256_MAX);
+#[test(should_fail_with = "attempt to add with overflow")]
+fn test_add_U256_overflow() {
+    // (2^256 - 1) + 1 = 2^256 overflows
+    let _: U256 = U256::from_limbs(U256_MAX) + U256::one();
+}
 
-    let mut expected: U256 = U256::from_limbs(U256_MAX);
-    expected.set_limb(0, expected.get_limb(0) - 1);
+#[test(should_fail_with = "attempt to add with overflow")]
+unconstrained fn test_add_U256_overflow_unconstrained() {
+    let _: U256 = U256::from_limbs(U256_MAX) + U256::one();
+}
 
-    let c: U256 = a + b;
-    assert(c == expected);
+#[test(should_fail_with = "attempt to add with overflow")]
+unconstrained fn test_unconstrained_add_U256_overflow() {
+    let _: U256 = U256::from_limbs(U256_MAX).__add(&U256::one());
+}
+
+// The witness hints fail first with a descriptive message, so check the constraints directly: no
+// choice of carry or borrow flags lets an overflowing sum or an underflowing difference through.
+#[test(should_fail_with = "call to assert_max_bit_size")]
+fn test_add_constraints_reject_overflow_honest_flags() {
+    // (2^256 - 1) + 1: the honest flags carry out of every limb
+    let _ = assert_add_no_overflow::<3, 256>(&U256_MAX, &[1, 0, 0], &[true, true]);
+}
+
+#[test(should_fail_with = "call to assert_max_bit_size")]
+fn test_add_constraints_reject_overflow_no_carries() {
+    let _ = assert_add_no_overflow::<3, 256>(&U256_MAX, &[1, 0, 0], &[false, false]);
+}
+
+#[test(should_fail_with = "call to assert_max_bit_size")]
+fn test_add_constraints_reject_overflow_partial_carries() {
+    let _ = assert_add_no_overflow::<3, 256>(&U256_MAX, &[1, 0, 0], &[true, false]);
+}
+
+#[test(should_fail_with = "call to assert_max_bit_size")]
+fn test_sub_constraints_reject_underflow_honest_flags() {
+    // 0 - 1: the honest flags borrow into every limb
+    let _ = assert_sub_no_overflow::<3, 256>(&[0, 0, 0], &[1, 0, 0], &[true, true]);
+}
+
+#[test(should_fail_with = "call to assert_max_bit_size")]
+fn test_sub_constraints_reject_underflow_no_borrows() {
+    let _ = assert_sub_no_overflow::<3, 256>(&[0, 0, 0], &[1, 0, 0], &[false, false]);
 }
 
 #[test]
-fn test_add_U256_wrap_around() {
-    // (2^256 - 2) + 3 = 1 (mod 2^256)
+fn test_add_U256_max() {
+    // (2^256 - 3) + 2 = 2^256 - 1
     let mut a: U256 = U256::from_limbs(U256_MAX);
-    let b: U256 = U256::from_limbs([3, 0, 0]);
-    let expected: U256 = U256::one();
-
-    a.set_limb(0, a.get_limb(0) - 1);
+    a.set_limb(0, a.get_limb(0) - 2);
+    let b: U256 = U256::from_limbs([2, 0, 0]);
 
     let c: U256 = a + b;
+    assert(c == U256::from_limbs(U256_MAX));
+}
 
-    assert(c == expected);
+#[test]
+fn test_add_U256_carry() {
+    // (2^120 - 1) + 1 = 2^120 carries into the second limb
+    let a: U256 = U256::from_limbs([TWO_POW_120 - 1, 0, 0]);
+    let c: U256 = a + U256::one();
+    assert(c.get_limbs() == [0, 1, 0]);
+}
+
+#[test(should_fail_with = "attempt to subtract with overflow")]
+fn test_sub_U256_underflow() {
+    let _: U256 = U256::zero() - U256::one();
+}
+
+#[test(should_fail_with = "attempt to subtract with overflow")]
+unconstrained fn test_sub_U256_underflow_unconstrained() {
+    let _: U256 = U256::zero() - U256::one();
+}
+
+#[test(should_fail_with = "attempt to subtract with overflow")]
+unconstrained fn test_unconstrained_sub_U256_underflow() {
+    let _: U256 = U256::zero().__sub(&U256::one());
 }
 
 #[test]
 fn test_sub_U256() {
-    // 0 - 1 should equal 2^256 - 1
-    let a: U256 = U256::zero();
-    let b: U256 = U256::one();
-    let expected: U256 = U256::from_limbs(U256_MAX);
-    let result: U256 = a - b;
-    assert(result == expected);
+    let max: U256 = U256::from_limbs(U256_MAX);
+    assert(max - max == U256::zero());
+
+    // 2^120 - 1 borrows from the second limb
+    let a: U256 = U256::from_limbs([0, 1, 0]);
+    let c: U256 = a - U256::one();
+    assert(c.get_limbs() == [TWO_POW_120 - 1, 0, 0]);
+}
+
+#[test(should_fail_with = "attempt to subtract with overflow")]
+fn test_sub_U2048_underflow() {
+    let a: U2048 = small_from_seed([1, 2, 3, 4]);
+    let b: U2048 = a + U2048::one();
+    let _: U2048 = a - b;
 }
 
 fn test_mul<let N: u32, BN>()
 where
     BN: BigInt,
 {
-    let a: BN = derive_from_seed([1, 2, 3, 4]);
-    let b: BN = derive_from_seed([4, 5, 6, 7]);
+    let a: BN = small_from_seed([1, 2, 3, 4]);
+    let b: BN = small_from_seed([4, 5, 6, 7]);
     let c: BN = (a + b) * (a + b);
     let d: BN = (a * a) + (b * b) + (a * b) + (b * a);
     assert(c.eq(d));
@@ -948,7 +1023,7 @@ where
 
 #[test]
 fn test_mul_U256_with_one() {
-    let a: U256 = U256::zero() - (U256::one() + U256::one());
+    let a: U256 = U256::from_limbs([TWO_POW_120 - 2, TWO_POW_120 - 1, 0xffff]);
     let b: U256 = U256::one();
     let c: U256 = a * b;
     assert(c == a);
@@ -1186,7 +1261,10 @@ fn test_expressions() {
     // Safety: test code
     let uv: U256 = unsafe { uu.__mul(&vv) };
     // Safety: test code
-    let y: U256 = unsafe { U256::zero().__sub(&uv.__add(&wx)) };
+    // -(uv + wx) mod 2^256
+    let y: U256 = U256::from_limbs(
+        unsafe { __helper_sub(&get_modulus::<3, 256>(), &uv.__add(&wx).get_limbs()) },
+    );
     // Safety: test code
     let z: U256 = unsafe { uv.__add(&wx) };
 

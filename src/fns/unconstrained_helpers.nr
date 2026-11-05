@@ -47,95 +47,43 @@ pub(crate) unconstrained fn __from_field<let N: u32>(val: Field) -> [u128; N] {
 }
 
 // ------------------------------ ARITHMETIC WITH FLAGS HELPER FUNCTIONS ------------------------------
-// These are the functions that compute modular operations results as well as borrow and carry flags for constraints
+// These are the functions that compute borrow and carry flags for constraints
 
-/// Compute flags for modular addition (unconstrained)
+/// Compute the carry flags for the limb-wise addition `lhs + rhs` (unconstrained)
 ///
-/// Given `lhs, rhs, modulus`, computes the carry and borrow flags needed
-/// for `lhs + rhs - (overflow ? modulus : 0)`.
-/// The result is computed in constrained code using `compute_add_result`.
+/// `carry_flags[i]` is set if limb `i` of `lhs + rhs` (including the carry into it) is `>= 2^{120}`.
 ///
-/// Returns (carry_flags, borrow_flags, overflow) where:
-/// - carry_flags: carries from adding lhs + rhs
-/// - borrow_flags: borrows from subtracting modulus when overflow occurs
-/// - overflow: true if lhs + rhs >= modulus (so we need to subtract modulus)
-pub(crate) unconstrained fn compute_add_flags<let N: u32>(
-    modulus: &[u128; N],
+/// Fails with a descriptive message if the sum overflows `2^BITS`. This is not needed for
+/// soundness, as `add` constrains the result, but otherwise an overflow would only be reported as
+/// a failed range check.
+pub(crate) unconstrained fn compute_carry_flags<let N: u32, let BITS: u32>(
     lhs: &[u128; N],
     rhs: &[u128; N],
-) -> ([bool; N - 1], [bool; N - 1], bool) {
-    let mask: u128 = TWO_POW_120 - 1;
-
-    let add_res: [u128; N] = __helper_add(lhs, rhs);
-    let overflow: bool = __gte(&add_res, modulus);
-
-    let subtrahend: [u128; N] = if overflow { *modulus } else { [0; N] };
-
-    let mut borrow_flags: [bool; N - 1] = [false; N - 1];
+) -> [bool; N - 1] {
     let mut carry_flags: [bool; N - 1] = [false; N - 1];
-
     let mut carry: u128 = 0;
-    let mut borrow: u128 = 0;
-    for i in 0..N {
-        let mut add_term: u128 = lhs[i] + rhs[i] + carry;
-        carry = add_term >> 120;
-        add_term &= mask;
-
-        let sub_term: u128 = subtrahend[i] + borrow;
-        borrow = (sub_term > add_term) as u128;
-
-        // Only set `borrow` and `carry` if they differ
-        // And if it's not the last limb
-        if (carry != borrow) & (i < N - 1) {
-            carry_flags[i] = carry != 0;
-            borrow_flags[i] = borrow != 0;
-        }
+    for i in 0..N - 1 {
+        carry = (lhs[i] + rhs[i] + carry) >> 120;
+        carry_flags[i] = carry != 0;
     }
-    (carry_flags, borrow_flags, overflow)
+    let top_limb_bits: u128 = (BITS - (N - 1) * 120) as u128;
+    assert(
+        ((lhs[N - 1] + rhs[N - 1] + carry) >> top_limb_bits) == 0,
+        "attempt to add with overflow",
+    );
+    carry_flags
 }
 
-/// Compute flags for modular subtraction (unconstrained)
+/// Compute the borrow flags for the limb-wise subtraction `lhs - rhs` (unconstrained)
 ///
-/// Given `lhs, rhs, modulus`, computes the carry and borrow flags needed
-/// for `lhs - rhs + (underflow ? modulus : 0)`.
-/// The result is computed in constrained code using `compute_sub_result`.
-///
-/// Returns (carry_flags, borrow_flags, underflow) where:
-/// - carry_flags: carries from adding (lhs + modulus) when underflow occurs
-/// - borrow_flags: borrows from subtracting rhs
-/// - underflow: true if lhs < rhs (so we need to add modulus)
-pub(crate) unconstrained fn compute_sub_flags<let N: u32>(
-    modulus: &[u128; N],
+/// Fails with a descriptive message if `rhs > lhs`. As for `compute_carry_flags`, this is not
+/// needed for soundness.
+pub(crate) unconstrained fn compute_sub_borrow_flags<let N: u32>(
     lhs: &[u128; N],
     rhs: &[u128; N],
-) -> ([bool; N - 1], [bool; N - 1], bool) {
-    let mask: u128 = TWO_POW_120 - 1;
-
-    let underflow: bool = !__gte(lhs, rhs);
-
-    let addend: [u128; N] = if underflow { *modulus } else { [0; N] };
-
-    let mut borrow_flags: [bool; N - 1] = [false; N - 1];
-    let mut carry_flags: [bool; N - 1] = [false; N - 1];
-
-    let mut carry: u128 = 0;
-    let mut borrow: u128 = 0;
-    for i in 0..N {
-        let mut add_term: u128 = lhs[i] + addend[i] + carry;
-        carry = add_term >> 120;
-        add_term &= mask;
-
-        let sub_term: u128 = rhs[i] + borrow;
-        borrow = (sub_term > add_term) as u128;
-
-        // Only set `borrow` and `carry` if they differ
-        // And if it's not the last limb
-        if (carry != borrow) & (i < N - 1) {
-            carry_flags[i] = carry != 0;
-            borrow_flags[i] = borrow != 0;
-        }
-    }
-    (carry_flags, borrow_flags, underflow)
+) -> [bool; N - 1] {
+    assert(__gte(lhs, rhs), "attempt to subtract with overflow");
+    compute_borrow_flags(lhs, rhs)
 }
 
 /// Compute borrow flags for lhs - rhs (unconstrained)

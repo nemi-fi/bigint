@@ -37,16 +37,10 @@ pub(crate) unconstrained fn __gte<let N: u32>(lhs: &[u128; N], rhs: &[u128; N]) 
 
 // ------------------------------ ARITHMETIC FUNCTIONS ------------------------------
 
-/// Adds two `BigInt` values with modular reduction (unconstrained)
+/// Adds two `BigInt` values (unconstrained).
 ///
-/// Sums the limbs one by one, keeping the carry.
-/// In case the result overflows the modulus, the modulus is subtracted once
-///
-/// ## Note
-/// The `carry` must be `0` at the end of the loop.
-/// No explicit assertion is made, as this condition is validated during evaluation.
-pub unconstrained fn __add<let N: u32>(
-    modulus: &[u128; N],
+/// Fails if the sum overflows `2^BITS`.
+pub unconstrained fn __add<let N: u32, let BITS: u32>(
     lhs: &[u128; N],
     rhs: &[u128; N],
 ) -> [u128; N] {
@@ -55,32 +49,25 @@ pub unconstrained fn __add<let N: u32>(
     let mask: u128 = TWO_POW_120 - 1;
 
     for i in 0..N {
-        let add_term: u128 = (lhs[i] + rhs[i] + carry);
+        let add_term: u128 = lhs[i] + rhs[i] + carry;
         carry = add_term >> 120;
         result[i] = add_term & mask;
     }
 
-    // check if the result is greater than the modulus
-    if __gte(&result, modulus) {
-        __helper_sub(&result, modulus)
-    } else {
-        result
-    }
+    let top_limb_bits: u128 = (BITS - (N - 1) * 120) as u128;
+    assert((carry == 0) & ((result[N - 1] >> top_limb_bits) == 0), "attempt to add with overflow");
+    result
 }
 
-/// Subtracts two `BigInt` values with modular reduction (unconstrained).
+/// Subtracts two `BigInt` values (unconstrained).
 ///
-/// Computes `x + (m - y)` (mod m)
-pub unconstrained fn __sub<let N: u32>(
-    modulus: &[u128; N],
+/// Fails if `rhs > lhs`.
+pub unconstrained fn __sub<let N: u32, let BITS: u32>(
     lhs: &[u128; N],
     rhs: &[u128; N],
 ) -> [u128; N] {
-    if __is_zero(rhs) {
-        *lhs
-    } else {
-        __add(modulus, lhs, &__helper_sub(modulus, rhs))
-    }
+    assert(__gte(lhs, rhs), "attempt to subtract with overflow");
+    __helper_sub(lhs, rhs)
 }
 
 /// Multiply `x` and `y` and reduce, returning (Q, R) (unconstrained).
