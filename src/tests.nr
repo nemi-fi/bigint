@@ -1,13 +1,12 @@
 use crate::bigint::BigInt;
+use crate::bigint::{compute_quadratic_expression, evaluate_quadratic_expression, to_field};
 use crate::bigint::derive_bigint;
-use crate::bigint::{evaluate_quadratic_expression, to_field};
 use crate::constants::{GRUMPKIN_MODULUS, TWO_POW_120, TWO_POW_240};
 use crate::fns::constrained_ops::{
     assert_add_no_overflow, assert_sub_no_overflow, from_field, validate_gt,
 };
-use crate::fns::expressions::{assert_product_limbs_fit_in_246_bits, validate_div_rem_expression};
-use crate::fns::modulus::get_modulus;
-use crate::fns::unconstrained_helpers::{__helper_add, __helper_sub};
+use crate::fns::expressions::{assert_product_limbs_fit_in_246_bits, validate_mul_add_expression};
+use crate::fns::unconstrained_helpers::__helper_add;
 
 use crate::types::U1024::U1024;
 use crate::types::U2048::U2048;
@@ -40,6 +39,13 @@ pub struct U253 {
     limbs: [u128; 3],
 }
 
+// Returns the limbs of `2^BITS`, which is not representable as a `BITS`-bit `BigInt`.
+fn two_pow_bits<let N: u32, let BITS: u32>() -> [u128; N] {
+    let mut limbs: [u128; N] = [0; N];
+    limbs[N - 1] = 1 << ((BITS - (N - 1) * 120) as u128);
+    limbs
+}
+
 // A 125-bit unsigned integer, narrower than `u128`
 #[derive_bigint(125)]
 pub struct U125 {
@@ -61,7 +67,8 @@ fn test_sub_underflow_regression() {
     assert(c.get_limbs() == [0, 0, 0]);
 }
 
-// Tests to confirm that we can no longer pass more than 1 extra `MOD` as a part of the witness
+// Tests to confirm that a witness cannot hide an extra multiple of `2^BITS`, as the relations are
+// exact and `2^BITS` is not representable
 
 #[test(should_fail_with = "call to assert_max_bit_size")]
 fn test_evaluate_quadratic_expression_add_rejects_hidden_two_pow_bits_fuzz(
@@ -71,9 +78,9 @@ fn test_evaluate_quadratic_expression_add_rejects_hidden_two_pow_bits_fuzz(
     let x: U256 = derive_from_seed(xseed);
     let y: U256 = derive_from_seed(yseed);
 
-    let modulus: [u128; 3] = get_modulus::<3, 256>();
+    let modulus: [u128; 3] = two_pow_bits::<3, 256>();
 
-    // compute honest z = x + y (mod MOD)
+    // compute honest z = x + y
     // Safety: test code
     let mut z_: [u128; 3] = unsafe { __helper_add(&x.get_limbs(), &y.get_limbs()) };
     // Safety: test code
@@ -91,12 +98,12 @@ fn test_evaluate_quadratic_expression_mul_rejects_hidden_two_pow_bits_fuzz(
     xseed: [u8; 1],
     yseed: [u8; 2],
 ) {
-    let x: U256 = derive_from_seed(xseed);
-    let y: U256 = derive_from_seed(yseed);
+    let x: U256 = small_from_seed(xseed);
+    let y: U256 = small_from_seed(yseed);
 
-    let modulus: [u128; 3] = get_modulus::<3, 256>();
+    let modulus: [u128; 3] = two_pow_bits::<3, 256>();
 
-    // compute honest z = x * y (mod MOD)
+    // compute honest z = x * y
     // Safety: test code
     let mut z_: [u128; 3] = unsafe { x.__mul(&y).get_limbs() };
     // Safety: test code
@@ -109,16 +116,46 @@ fn test_evaluate_quadratic_expression_mul_rejects_hidden_two_pow_bits_fuzz(
     evaluate_quadratic_expression([[x]], [[false]], [[y]], [[false]], [z], [true]);
 }
 
-// This tests that we no longer validate div_rem expression `(mod MOD)`
-// This would have passed previously with `evaluate_quadratic_expression` call
+// A wrapped sum is rejected: (2^256 - 1) + 1 - 0 != 0
+#[test(should_fail)]
+fn test_evaluate_quadratic_expression_rejects_wrapped_sum() {
+    let x: U256 = U256::from_limbs(U256_MAX);
+    let y: U256 = U256::one();
+    let z: U256 = U256::zero();
+    evaluate_quadratic_expression([[]], [[]], [[]], [[]], [x, y, z], [false, false, true]);
+}
+
+// A wrapped product is rejected: 2^128 * 2^128 - 0 != 0
+#[test(should_fail)]
+fn test_evaluate_quadratic_expression_rejects_wrapped_product() {
+    let x: U256 = U256::from_limbs([0, 0x100, 0]);
+    let z: U256 = U256::zero();
+    evaluate_quadratic_expression([[x]], [[false]], [[x]], [[false]], [z], [true]);
+}
+
+// A wrapped difference is rejected: 0 - 1 + (2^256 - 1) != 0
+#[test(should_fail)]
+fn test_evaluate_quadratic_expression_rejects_wrapped_difference() {
+    let one: U256 = U256::one();
+    let max: U256 = U256::from_limbs(U256_MAX);
+    evaluate_quadratic_expression(
+        [[]],
+        [[]],
+        [[]],
+        [[]],
+        [U256::zero(), one, max],
+        [false, true, false],
+    );
+}
+
+// The `div_rem` relation is exact, so the quotient cannot hide an extra `2^BITS`
 #[test(should_fail)]
 fn test_div_rem_rejects_hidden_two_pow_bits(xseed: [u8; 1], yseed: [u8; 2]) {
     let x: U256 = derive_from_seed(xseed);
     let y: U256 = derive_from_seed(yseed);
 
-    let modulus: [u128; 3] = get_modulus::<3, 256>();
+    let modulus: [u128; 3] = two_pow_bits::<3, 256>();
 
-    // compute honest z = x * y (mod MOD)
     // Safety: test code
     let (q, r): (U256, U256) = unsafe { x.__div_rem(&y) };
 
@@ -126,7 +163,7 @@ fn test_div_rem_rejects_hidden_two_pow_bits(xseed: [u8; 1], yseed: [u8; 2]) {
     // Safety: test code
     q_ = unsafe { __helper_add(&q_, &modulus) };
 
-    validate_div_rem_expression::<3, 256>(&x.get_limbs(), &y.get_limbs(), &q_, &r.get_limbs());
+    validate_mul_add_expression::<3, 256>(&q_, &y.get_limbs(), &r.get_limbs(), &x.get_limbs());
 }
 
 // This tests that `validate_gt` no longer accepts identical inputs
@@ -166,17 +203,17 @@ fn test_evaluate_quadratic_expression_overflow_num_products_U256_2() {
     evaluate_quadratic_expression([[zero; 6]], [[false; 6]], [[zero; 6]], [[false; 6]], [], []);
 }
 
-// The (N-1)th limb bound only dominates when `TOP_LIMB_BITS + 1 == 120`, i.e. when
-// `BITS = N * 120 - 1`. None of the shipped `BigInt` types hit that case, so we
+// The (N-1)th limb bound only dominates when `TOP_LIMB_BITS == 120`, i.e. when
+// `BITS = N * 120`. None of the shipped `BigInt` types hit that case, so we
 // exercise the check directly via `assert_product_limbs_fit_in_246_bits` with a
 // synthetic `<N, BITS>` pair.
 //
-// With N=3, BITS=359, LHS_N=RHS_N=1, NUM_PRODUCTS=22:
+// With N=3, BITS=360, LHS_N=RHS_N=1, NUM_PRODUCTS=22:
 //   - (N-2)th bound: 22 * 2 * (2^120-1)^2 ~ 44 * 2^240 < 2^246  (passes)
 //   - (N-1)th bound: 22 * 3 * (2^120-1)^2 ~ 66 * 2^240 > 2^246  (fails first)
 #[test(should_fail_with = "product limbs may exceed 2^246 at limb 2")]
 fn test_assert_product_limbs_fit_in_246_bits_n_minus_1() {
-    assert_product_limbs_fit_in_246_bits::<3, 359, 1, 1, 22>();
+    assert_product_limbs_fit_in_246_bits::<3, 360, 1, 1, 22>();
 }
 
 // from_field must reject values >= 2^BITS, even when they are smaller than the Grumpkin modulus.
@@ -706,7 +743,7 @@ fn test_from_limbs_rejects_two_pow_bits<let N: u32, BN>()
 where
     BN: BigInt,
 {
-    let _: BN = BN::from_limbs(get_modulus::<<BN as BigInt>::N, <BN as BigInt>::BITS>());
+    let _: BN = BN::from_limbs(two_pow_bits::<<BN as BigInt>::N, <BN as BigInt>::BITS>());
 }
 
 #[test(should_fail_with = "call to assert_max_bit_size")]
@@ -1219,6 +1256,123 @@ unconstrained fn test_unconstrained_div_by_zero() {
     let _ = U256::from(7).__div(&U256::zero());
 }
 
+// Intermediate values within an expression may exceed 2^BITS: a * a - a * d - r = 0, where
+// a = 2^128, d = 2^128 - 1 and r = 2^128, although a * a = 2^256 does not fit in a `U256`
+#[test]
+fn test_evaluate_quadratic_expression_overflowing_intermediates() {
+    let a: U256 = U256::from_limbs([0, 0x100, 0]);
+    let d: U256 = U256::from_limbs([TWO_POW_120 - 1, 0xff, 0]);
+    let r: U256 = U256::from_limbs([0, 0x100, 0]);
+    evaluate_quadratic_expression(
+        [[a], [a]],
+        [[false], [false]],
+        [[a], [d]],
+        [[false], [true]],
+        [r],
+        [true],
+    );
+
+    // Safety: test code
+    let computed: U256 = unsafe {
+        compute_quadratic_expression(
+            [[a], [a]],
+            [[false], [false]],
+            [[a], [d]],
+            [[false], [true]],
+            [],
+            [],
+        )
+    };
+    assert(computed == r);
+}
+
+// The same computation with the checked operators fails at `a * a`
+#[test(should_fail_with = "attempt to multiply with overflow")]
+fn test_operators_reject_overflowing_intermediates() {
+    let a: U256 = U256::from_limbs([0, 0x100, 0]);
+    let d: U256 = U256::from_limbs([TWO_POW_120 - 1, 0xff, 0]);
+    let _: U256 = a * a - a * d;
+}
+
+// ------------------------------ CHECKED MULTIPLICATION TESTS ------------------------------
+
+#[test]
+fn test_mul_U256_max() {
+    // (2^128 - 1) * (2^128 - 1) = 2^256 - 2^129 + 1 fits
+    let a: U256 = U256::from_limbs([TWO_POW_120 - 1, 0xff, 0]);
+    let c: U256 = a * a;
+    // Safety: test code
+    let expected: U256 = unsafe {
+        U256::from_limbs(U256_MAX).__sub(&U256::from_limbs([0, 0x200, 0])).__add(&U256::from(2))
+    };
+    assert(c == expected);
+}
+
+#[test(should_fail_with = "attempt to multiply with overflow")]
+fn test_mul_U256_overflow() {
+    // 2^128 * 2^128 = 2^256 overflows
+    let a: U256 = U256::from_limbs([0, 0x100, 0]);
+    let _: U256 = a * a;
+}
+
+#[test(should_fail_with = "attempt to multiply with overflow")]
+unconstrained fn test_unconstrained_mul_U256_overflow() {
+    let a: U256 = U256::from_limbs([0, 0x100, 0]);
+    let _: U256 = a.__mul(&a);
+}
+
+// Even if the prover supplies the wrapped product, the multiplication relation is rejected
+#[test(should_fail)]
+fn test_mul_U256_rejects_wrapped_product() {
+    let a: [u128; 3] = [0, 0x100, 0];
+    validate_mul_add_expression::<3, 256>(&a, &a, &[0, 0, 0], &[0, 0, 0]);
+}
+
+#[test]
+unconstrained fn test_pow() {
+    let three: U256 = U256::from(3);
+    assert(three.__pow(&U256::from(5)) == U256::from(243));
+    assert(three.__pow(&U256::zero()) == U256::one());
+    assert(U256::zero().__pow(&U256::zero()) == U256::one());
+    assert(U256::zero().__pow(&U256::from(7)) == U256::zero());
+    assert(U256::one().__pow(&U256::from_limbs(U256_MAX)) == U256::one());
+
+    // 2^255 is the largest power of two which fits
+    let two_pow_255: U256 = U256::from_limbs([0, 0, 0x8000]);
+    assert(U256::from(2).__pow(&U256::from(255)) == two_pow_255);
+}
+
+#[test(should_fail_with = "attempt to multiply with overflow")]
+unconstrained fn test_pow_overflow() {
+    let _: U256 = U256::from(2).__pow(&U256::from(256));
+}
+
+#[test]
+unconstrained fn test_compute_quadratic_expression() {
+    let a: U256 = U256::from(6);
+    let b: U256 = U256::from(7);
+    let c: U256 = U256::from(5);
+    // a * b - c = 37
+    let r: U256 = compute_quadratic_expression([[a]], [[false]], [[b]], [[false]], [c], [true]);
+    assert(r == U256::from(37));
+}
+
+#[test(should_fail_with = "attempt to subtract with overflow")]
+unconstrained fn test_compute_quadratic_expression_negative() {
+    let a: U256 = U256::from(6);
+    let b: U256 = U256::from(7);
+    let c: U256 = U256::from(50);
+    // a * b - c < 0
+    let _: U256 = compute_quadratic_expression([[a]], [[false]], [[b]], [[false]], [c], [true]);
+}
+
+#[test(should_fail_with = "attempt to evaluate quadratic expression with overflow")]
+unconstrained fn test_compute_quadratic_expression_overflow() {
+    let a: U256 = U256::from_limbs([0, 0x100, 0]);
+    // a * a = 2^256
+    let _: U256 = compute_quadratic_expression([[a]], [[false]], [[a]], [[false]], [], []);
+}
+
 #[test(should_fail_with = "attempt to divide by zero")]
 unconstrained fn test_div_by_zero_unconstrained() {
     let _ = U256::from(7) / U256::zero();
@@ -1235,39 +1389,23 @@ fn test_expressions() {
 
     assert(yy.get_limbs() == z.get_limbs());
 
-    let uu: U256 = U256::from_limbs([
-        0x0000000000000000000000000000000000b4a832748da6ad742a1fd81b787643,
-        0x00000000000000000000000000000000009575f594e04080471712c1d7f18e89,
-        0x000000000000000000000000000000000000000000000000000000000000063,
-    ]);
-    let vv: U256 = U256::from_limbs([
-        0x0000000000000000000000000000000000b4aec2748da6ad742a1fd81b787643,
-        0x00000000000000000000000000000000009575f594e0408047171a01d7f18e89,
-        0x0000000000000000000000000000000000000000000000000000000000000062,
-    ]);
-
-    let w: U256 = U256::from_limbs([
-        0x0000000000000000000000000000000000b4a832748da6ad742a1fd81b787643,
-        0x00000000000000000000000000000000009575f594e04080471712c1d7f18e89,
-        0x0000000000000000000000000000000000000000000000000000000000001f93,
-    ]);
-    let x: U256 = U256::from_limbs([
-        0x0000000000000000000000000000000000b4aec2748da6ad742a1fd81b787643,
-        0x00000000000000000000000000000000009575f594e0408047171a01d7f18e89,
-        0x0000000000000000000000000000000000000000000000000000000000000f93,
-    ]);
+    // Values below 2^127, so that `uu * vv + w * x` fits in 256 bits
+    let uu: U256 = U256::from_limbs([0xb4a832748da6ad742a1fd81b787643, 0x75, 0x0]);
+    let vv: U256 = U256::from_limbs([0xb4aec2748da6ad742a1fd81b787643, 0x62, 0x0]);
+    let w: U256 = U256::from_limbs([0xb4a832748da6ad742a1fd81b787643, 0x1f, 0x0]);
+    let x: U256 = U256::from_limbs([0xb4aec2748da6ad742a1fd81b787643, 0xf, 0x0]);
     // Safety: test code
     let wx: U256 = unsafe { w.__mul(&x) };
     // Safety: test code
     let uv: U256 = unsafe { uu.__mul(&vv) };
     // Safety: test code
-    // -(uv + wx) mod 2^256
-    let y: U256 = U256::from_limbs(
-        unsafe { __helper_sub(&get_modulus::<3, 256>(), &uv.__add(&wx).get_limbs()) },
-    );
-    // Safety: test code
     let z: U256 = unsafe { uv.__add(&wx) };
+    assert(
+        z.get_limbs()
+            == [0xd652754f81ecae21b4d9626ee3ab12, 0x3249dee05564b0c430d352ec4798ac, 0x2f54],
+    );
 
+    // uu * vv + w * x - z = 0
     evaluate_quadratic_expression(
         [[uu], [w]],
         [[false], [false]],
@@ -1276,12 +1414,13 @@ fn test_expressions() {
         [z],
         [true],
     );
+    // (-uu) * vv + w * (-x) + z = 0
     evaluate_quadratic_expression(
         [[uu], [w]],
-        [[false], [false]],
+        [[true], [false]],
         [[vv], [x]],
-        [[false], [false]],
-        [y],
+        [[false], [true]],
+        [z],
         [false],
     );
 
@@ -1291,45 +1430,46 @@ fn test_expressions() {
 
 #[test]
 fn test_2048_bit_quadratic_expression() {
+    // `a` uses 8 limbs and `b` uses 9 limbs, so `a * b` fits in 2048 bits
     let a: [u128; 18] = [
-        0x000000000000000000000000000000000083684820ff40795b8d9f1be2220cba,
-        0x0000000000000000000000000000000000d4924fbdc522b07b6cd0ef5508fd66,
-        0x0000000000000000000000000000000000d48f6c43c5930f3d70d6db09a48f4a,
-        0x0000000000000000000000000000000000e7f72b2c0756704bea85be38352b34,
-        0x00000000000000000000000000000000008337197826e2e9ea000ed5b05d5ac5,
-        0x000000000000000000000000000000000040680101b43f6d17de8e3507f3d820,
-        0x00000000000000000000000000000000000c6ba0cdcf77cff1c10355ea48d387,
-        0x0000000000000000000000000000000000e51717a72902214a9dbeb90e4f225f,
-        0x0000000000000000000000000000000000c1bd5bec78406b691f71cbcddb4574,
-        0x00000000000000000000000000000000001ce5e532cfb306d7b52e7d9f1aa442,
-        0x000000000000000000000000000000000019575932f75ddf00595b22782e1ba2,
-        0x0000000000000000000000000000000000d630b3fbf0a9e55861e4399900feb9,
-        0x0000000000000000000000000000000000d6b37aeb2daa8d2e2f7e29b0f7752a,
-        0x0000000000000000000000000000000000e9cacdd93406256b9eb46b73948849,
-        0x00000000000000000000000000000000001400e1f0a38695db66993fe042c48b,
-        0x0000000000000000000000000000000000e1d829cb4fa8cabb7d0265efbd8527,
-        0x000000000000000000000000000000000055f1a92a5dd099ef2bcd89ac175b52,
-        0x00000000000000000000000000000000000000000000000000000000000000fc,
+        0x83684820ff40795b8d9f1be2220cba,
+        0xd4924fbdc522b07b6cd0ef5508fd66,
+        0xd48f6c43c5930f3d70d6db09a48f4a,
+        0xe7f72b2c0756704bea85be38352b34,
+        0x8337197826e2e9ea000ed5b05d5ac5,
+        0x40680101b43f6d17de8e3507f3d820,
+        0x0c6ba0cdcf77cff1c10355ea48d387,
+        0xe51717a72902214a9dbeb90e4f225f,
+        0x000000000000000000000000000000,
+        0x000000000000000000000000000000,
+        0x000000000000000000000000000000,
+        0x000000000000000000000000000000,
+        0x000000000000000000000000000000,
+        0x000000000000000000000000000000,
+        0x000000000000000000000000000000,
+        0x000000000000000000000000000000,
+        0x000000000000000000000000000000,
+        0x000000000000000000000000000000,
     ];
     let b: [u128; 18] = [
-        0x0000000000000000000000000000000000c5694493e9bcc76e68dfcf73e0fde1,
-        0x0000000000000000000000000000000000ede5e4b8b3e0dec1f4705c35521620,
-        0x00000000000000000000000000000000007aa800bab1b33eda0f07695af6c583,
-        0x000000000000000000000000000000000045892edea2c02bf0b8b1d2d9a4ebcc,
-        0x00000000000000000000000000000000004dffb06bf396f3d0a5b67cff714bdd,
-        0x00000000000000000000000000000000004d691db495235e1e032f1ef3e90274,
-        0x0000000000000000000000000000000000d92c069d0f2675b2f46cb497aa62d4,
-        0x00000000000000000000000000000000003d3f23584f113cef1a4b8b7d183f5c,
-        0x0000000000000000000000000000000000289ba11d897837f9cec57dcc430bfc,
-        0x0000000000000000000000000000000000765dc64f6ed4a6efd7b26c38f79e59,
-        0x00000000000000000000000000000000008edf31fabf5c330ecf7f92fb6487cd,
-        0x000000000000000000000000000000000053392f8b14dd78af702b3be2e0d557,
-        0x000000000000000000000000000000000034abf357bfd56e9786a7e47ed9a5ae,
-        0x0000000000000000000000000000000000a9ebb234064c8ab10d4e7900d4b973,
-        0x00000000000000000000000000000000002a6850cce14a20463913002ddc0fa6,
-        0x0000000000000000000000000000000000a97e3b06586bfa62325ef7557ab536,
-        0x0000000000000000000000000000000000b942b0d26e5be2e08cd425107c59f7,
-        0x0000000000000000000000000000000000000000000000000000000000000031,
+        0xc5694493e9bcc76e68dfcf73e0fde1,
+        0xede5e4b8b3e0dec1f4705c35521620,
+        0x7aa800bab1b33eda0f07695af6c583,
+        0x45892edea2c02bf0b8b1d2d9a4ebcc,
+        0x4dffb06bf396f3d0a5b67cff714bdd,
+        0x4d691db495235e1e032f1ef3e90274,
+        0xd92c069d0f2675b2f46cb497aa62d4,
+        0x3d3f23584f113cef1a4b8b7d183f5c,
+        0x289ba11d897837f9cec57dcc430bfc,
+        0x000000000000000000000000000000,
+        0x000000000000000000000000000000,
+        0x000000000000000000000000000000,
+        0x000000000000000000000000000000,
+        0x000000000000000000000000000000,
+        0x000000000000000000000000000000,
+        0x000000000000000000000000000000,
+        0x000000000000000000000000000000,
+        0x000000000000000000000000000000,
     ];
     let c_expected: [u128; 18] = [
         0x3f908a621641f3c6e0dfe61741017a,
@@ -1340,16 +1480,16 @@ fn test_2048_bit_quadratic_expression() {
         0x0e988d51c5c3304f356af66fb4c10c,
         0x17bd900911a262bb4c2bf6722c9612,
         0x3835d5390fe7e01b2ec9bbced084d9,
-        0x97143f3b35fc7fde7e610b3f0ae5c0,
-        0x40173a46535deda4adea842379123e,
-        0x2d896b389a37aa012ba3812c5cd8bb,
-        0xbfe4b1ae75e07d5ec49972bea3ee29,
-        0x7c334ec1665f7b1e40f210431428e3,
-        0x9b149e0e0d01bb62f11f08a0794dea,
-        0xfc55c2bee47c40ab5539460f2e90f6,
-        0xf682c1dae4732070f32bb339dfe469,
-        0x2c1f76c7da5f780904e777ee21c857,
-        0x00000000000000000000000000000d,
+        0xa593a2ded0895cc1aa1d9dbc2f36cc,
+        0x920b0ea0d765292b79a4ef7dbe7533,
+        0xd3529783a8ed7079ae9979ef18d0e9,
+        0xd62863784dcbd70fd50c666787164d,
+        0x74ad917740e1fb3bb84ed0608fd0c4,
+        0x071c35e998e252da4ff84e347bd74b,
+        0x9b0453d62318670745684f82c6daa3,
+        0x8490d711ae8cb07d08a8ee40b1dd2f,
+        0x2456e0db6520e8cadae29aa4c2382d,
+        0x000000000000000000000000000000,
     ];
 
     let a_bn: U2048 = U2048::from_limbs(a);
@@ -1361,4 +1501,96 @@ fn test_2048_bit_quadratic_expression() {
     assert(c_bn.get_limbs() == c_expected);
 
     evaluate_quadratic_expression([[a_bn]], [[false]], [[b_bn]], [[false]], [c_bn], [true]);
+    assert(a_bn * b_bn == c_bn);
+}
+
+// The product of two full-width values overflows
+#[test(should_fail_with = "attempt to multiply with overflow")]
+unconstrained fn test_2048_bit_mul_overflow_unconstrained() {
+    let a: U2048 = U2048::from_limbs([
+        0x83684820ff40795b8d9f1be2220cba,
+        0xd4924fbdc522b07b6cd0ef5508fd66,
+        0xd48f6c43c5930f3d70d6db09a48f4a,
+        0xe7f72b2c0756704bea85be38352b34,
+        0x8337197826e2e9ea000ed5b05d5ac5,
+        0x40680101b43f6d17de8e3507f3d820,
+        0x0c6ba0cdcf77cff1c10355ea48d387,
+        0xe51717a72902214a9dbeb90e4f225f,
+        0xc1bd5bec78406b691f71cbcddb4574,
+        0x1ce5e532cfb306d7b52e7d9f1aa442,
+        0x19575932f75ddf00595b22782e1ba2,
+        0xd630b3fbf0a9e55861e4399900feb9,
+        0xd6b37aeb2daa8d2e2f7e29b0f7752a,
+        0xe9cacdd93406256b9eb46b73948849,
+        0x1400e1f0a38695db66993fe042c48b,
+        0xe1d829cb4fa8cabb7d0265efbd8527,
+        0x55f1a92a5dd099ef2bcd89ac175b52,
+        0x0000000000000000000000000000fc,
+    ]);
+    let b: U2048 = U2048::from_limbs([
+        0xc5694493e9bcc76e68dfcf73e0fde1,
+        0xede5e4b8b3e0dec1f4705c35521620,
+        0x7aa800bab1b33eda0f07695af6c583,
+        0x45892edea2c02bf0b8b1d2d9a4ebcc,
+        0x4dffb06bf396f3d0a5b67cff714bdd,
+        0x4d691db495235e1e032f1ef3e90274,
+        0xd92c069d0f2675b2f46cb497aa62d4,
+        0x3d3f23584f113cef1a4b8b7d183f5c,
+        0x289ba11d897837f9cec57dcc430bfc,
+        0x765dc64f6ed4a6efd7b26c38f79e59,
+        0x8edf31fabf5c330ecf7f92fb6487cd,
+        0x53392f8b14dd78af702b3be2e0d557,
+        0x34abf357bfd56e9786a7e47ed9a5ae,
+        0xa9ebb234064c8ab10d4e7900d4b973,
+        0x2a6850cce14a20463913002ddc0fa6,
+        0xa97e3b06586bfa62325ef7557ab536,
+        0xb942b0d26e5be2e08cd425107c59f7,
+        0x000000000000000000000000000031,
+    ]);
+    let _: U2048 = a * b;
+}
+
+#[test(should_fail_with = "attempt to multiply with overflow")]
+fn test_2048_bit_mul_overflow() {
+    let a: U2048 = U2048::from_limbs([
+        0x83684820ff40795b8d9f1be2220cba,
+        0xd4924fbdc522b07b6cd0ef5508fd66,
+        0xd48f6c43c5930f3d70d6db09a48f4a,
+        0xe7f72b2c0756704bea85be38352b34,
+        0x8337197826e2e9ea000ed5b05d5ac5,
+        0x40680101b43f6d17de8e3507f3d820,
+        0x0c6ba0cdcf77cff1c10355ea48d387,
+        0xe51717a72902214a9dbeb90e4f225f,
+        0xc1bd5bec78406b691f71cbcddb4574,
+        0x1ce5e532cfb306d7b52e7d9f1aa442,
+        0x19575932f75ddf00595b22782e1ba2,
+        0xd630b3fbf0a9e55861e4399900feb9,
+        0xd6b37aeb2daa8d2e2f7e29b0f7752a,
+        0xe9cacdd93406256b9eb46b73948849,
+        0x1400e1f0a38695db66993fe042c48b,
+        0xe1d829cb4fa8cabb7d0265efbd8527,
+        0x55f1a92a5dd099ef2bcd89ac175b52,
+        0x0000000000000000000000000000fc,
+    ]);
+    let b: U2048 = U2048::from_limbs([
+        0xc5694493e9bcc76e68dfcf73e0fde1,
+        0xede5e4b8b3e0dec1f4705c35521620,
+        0x7aa800bab1b33eda0f07695af6c583,
+        0x45892edea2c02bf0b8b1d2d9a4ebcc,
+        0x4dffb06bf396f3d0a5b67cff714bdd,
+        0x4d691db495235e1e032f1ef3e90274,
+        0xd92c069d0f2675b2f46cb497aa62d4,
+        0x3d3f23584f113cef1a4b8b7d183f5c,
+        0x289ba11d897837f9cec57dcc430bfc,
+        0x765dc64f6ed4a6efd7b26c38f79e59,
+        0x8edf31fabf5c330ecf7f92fb6487cd,
+        0x53392f8b14dd78af702b3be2e0d557,
+        0x34abf357bfd56e9786a7e47ed9a5ae,
+        0xa9ebb234064c8ab10d4e7900d4b973,
+        0x2a6850cce14a20463913002ddc0fa6,
+        0xa97e3b06586bfa62325ef7557ab536,
+        0xb942b0d26e5be2e08cd425107c59f7,
+        0x000000000000000000000000000031,
+    ]);
+    let _: U2048 = a * b;
 }

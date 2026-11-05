@@ -12,7 +12,7 @@ Efficient constrained and unconstrained arithmetic over large unsigned integers 
 The Noir standard library provides unsigned integers up to 128 bits and a native `Field` of ~254 bits. This library provides fixed-width unsigned integers of 256 bits and above.
 
 > [!NOTE]
-> This library is derived from [noir-bignum](https://github.com/noir-lang/noir-bignum), with all finite-field functionality removed. This library provides **checked** arithmetic, where overflow and underflow cause constraint failures. `+` and `-` are checked; `*` and `evaluate_quadratic_expression` currently still wrap (i.e. are performed modulo `2^BITS`).
+> This library is derived from [noir-bignum](https://github.com/noir-lang/noir-bignum), with all finite-field functionality removed. All arithmetic is **checked**: overflow and underflow cause constraint failures rather than wrapping.
 
 ## Noir version compatibility
 
@@ -83,7 +83,7 @@ At least two limbs are required. Single-limb types are not supported.
 The overloaded operators are constrained:
 
 - `+`, `-`: checked addition and subtraction, which fail if the result overflows $2^X$ or is negative
-- `*`: multiplication modulo $2^X$ (wrapping)
+- `*`: checked multiplication, which fails if the product overflows $2^X$
 - `/`, `%`: integer division (rounding down) and remainder, which fail if the divisor is zero
 - `==`: equality
 - `<`, `<=`, `>`, `>=`: integer comparison
@@ -121,15 +121,15 @@ These generate no constraints. Their results must be constrained, ideally with `
 
 ### `evaluate_quadratic_expression`
 
-Every constrained operator performs its own reduction and range checks, which makes chaining several of them expensive. A cheaper approach is to compute the result with unconstrained code and then constrain the whole relation at once:
+Every constrained operator range-checks its own result and checks its own relation, which makes chaining several of them expensive. A cheaper approach is to compute the result with unconstrained code and then constrain the whole relation at once:
 
 ```rust
 use bigint::{compute_quadratic_expression, evaluate_quadratic_expression, U256};
 
-// Check that (x1 * x2) + x3 == expected (mod 2^256)
+// Check that (x1 * x2) + x3 == expected
 fn main(x1: U256, x2: U256, x3: U256, expected: U256) {
     // Safety: the result is constrained below
-    let (_, res) = unsafe { compute_quadratic_expression([[x1]], [[false]], [[x2]], [[false]], [x3], [false]) };
+    let res = unsafe { compute_quadratic_expression([[x1]], [[false]], [[x2]], [[false]], [x3], [false]) };
 
     // Constrain (x1 * x2) + x3 - res == 0
     evaluate_quadratic_expression(
@@ -160,13 +160,19 @@ pub fn evaluate_quadratic_expression<T: BigInt, let LHS_N: u32, let RHS_N: u32, 
 
 This constrains
 
-$$\sum_{i=0}^{\text{NUM\_PRODUCTS}-1} \left(\sum_j \pm \text{lhs}_{i,j}\right)\left(\sum_k \pm \text{rhs}_{i,k}\right) + \sum_l \pm \text{linear}_l \equiv 0 \pmod{2^X}$$
+$$\sum_{i=0}^{\text{NUM\_PRODUCTS}-1} \left(\sum_j \pm \text{lhs}_{i,j}\right)\left(\sum_k \pm \text{rhs}_{i,k}\right) + \sum_l \pm \text{linear}_l = 0$$
 
-where a `true` flag negates the corresponding term.
+over the integers, where a `true` flag negates the corresponding term. As every term is range-checked to $X$ bits, a relation such as `x * y - z = 0` constrains `z` to be exactly `x * y`, and fails if the product overflows.
+
+Only the terms are range-checked: intermediate values within the expression may exceed $2^X$ or be negative, as long as the relation holds. For example, with `a = 2^128` and `d = 2^128 - 1`, the relation `a * a - a * d - r = 0` holds for `r = 2^128` in `U256`, even though `a * a = 2^256` does not fit in a `U256` (so computing `a * a - a * d` with the checked operators fails). This makes expressions useful for relations which cannot be computed step by step, such as checking `a * b == c * d` when the products exceed $2^X$.
+
+Combining several operations into one expression is also cheaper than using the operators, as only the terms are range-checked and the relation is checked once. For example, `a * b + c * d` costs 55 gates for `U256` (952 for `U2048`) on top of range-checking the inputs, compared to 90 (1,190) using `*` and `+`, when the result is computed in a single unconstrained call (see below). For a single product, `*` is cheaper.
 
 The combination of `NUM_PRODUCTS`, `LHS_N` and `RHS_N` must be small enough that intermediate product limbs do not exceed $2^{246}$. This is enforced, and expressions which could overflow are rejected. As a rough guide, keep `NUM_PRODUCTS * LHS_N * RHS_N` well below 64.
 
-`compute_quadratic_expression` is the unconstrained counterpart. It returns the quotient and remainder of such an expression.
+`compute_quadratic_expression` is the unconstrained counterpart: it returns the value of an expression, failing if the value is negative or overflows $2^X$.
+
+Each call to an unconstrained function from constrained code range-checks the values it returns, so compute a witness in a single call (e.g. with `compute_quadratic_expression`, or your own `unconstrained fn`) rather than by chaining `__` methods. For `a * b + c * d`, chaining (`a.__mul(&b).__add(&c.__mul(&d))`) makes three calls and costs about 40 more gates than a single call for `U256`, which removes most of the saving over the operators.
 
 Each call to an unconstrained function from constrained code range-checks the values it returns, so compute a witness in a single call (e.g. with `compute_quadratic_expression`, or your own `unconstrained fn`) rather than by chaining `__` methods. For example, `a.__mul(&b).__add(&c.__mul(&d))` makes three calls, and so range-checks two intermediate values which a single call would not.
 

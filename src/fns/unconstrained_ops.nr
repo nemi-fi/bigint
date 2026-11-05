@@ -1,8 +1,8 @@
 // This file contains the unconstrained operations that are used directly by BigInt class
 
 use crate::fns::unconstrained_helpers::{
-    __get_bit, __get_msb, __helper_add, __helper_mul, __helper_sub, __increment, __one, __reduce,
-    __shl, __shr1,
+    __get_bit, __get_msb, __helper_add, __helper_mul, __helper_sub, __increment, __one, __shl,
+    __shr1,
 };
 
 use crate::constants::TWO_POW_120;
@@ -70,47 +70,51 @@ pub unconstrained fn __sub<let N: u32, let BITS: u32>(
     __helper_sub(lhs, rhs)
 }
 
-/// Multiply `x` and `y` and reduce, returning (Q, R) (unconstrained).
+/// Multiplies two `BigInt` values (unconstrained).
 ///
-/// For `BigInt` values `x` and `y` compute (`Q`, `R`) such that:
-///      x * y = R + Q * m, 0 <= R < m
-/// See `__reduce` for details.
-pub(crate) unconstrained fn __mul_with_quotient<let N: u32, let BITS: u32>(
-    lhs: &[u128; N],
-    rhs: &[u128; N],
-) -> ([u128; N], [u128; N]) {
-    let to_reduce: [u128; N * 2] = __helper_mul(lhs, rhs);
-    __reduce::<N, BITS>(&to_reduce)
-}
-
-/// Multiplies two `BigInt` values with modular reduction (unconstrained).
+/// Fails if the product overflows `2^BITS`.
 pub unconstrained fn __mul<let N: u32, let BITS: u32>(
     lhs: &[u128; N],
     rhs: &[u128; N],
 ) -> [u128; N] {
-    __mul_with_quotient::<N, BITS>(lhs, rhs).1
+    let product: [u128; 2 * N] = __helper_mul(lhs, rhs);
+
+    let mut result: [u128; N] = [0; N];
+    for i in 0..N {
+        result[i] = product[i];
+    }
+    let top_limb_bits: u128 = (BITS - (N - 1) * 120) as u128;
+    let mut overflow: bool = (result[N - 1] >> top_limb_bits) != 0;
+    for i in N..2 * N {
+        overflow |= product[i] != 0;
+    }
+    assert(!overflow, "attempt to multiply with overflow");
+
+    result
 }
 
-/// Modular exponentiation via square-and-multiply. LSB-first (unconstrained).
+/// Exponentiation via square-and-multiply, MSB-first (unconstrained).
 ///
-/// Computes `x^e mod m`
+/// Computes `x^e`, failing if the result overflows `2^BITS`.
 ///
 /// ## Note
-/// For the loop, we are using `BITS` instead of `__get_msb`
-/// because it is much much cheaper
+/// Processing the exponent from its most significant bit means each intermediate value is
+/// `x^p` for a prefix `p` of the exponent's bits, with `p <= e`. Hence no intermediate step
+/// overflows unless the result does (for `x >= 1`; for `x = 0` every intermediate value is `0` or
+/// `1`).
 pub unconstrained fn __pow<let N: u32, let BITS: u32>(
     val: &[u128; N],
     exponent: &[u128; N],
 ) -> [u128; N] {
     let mut accumulator: [u128; N] = __one();
-    let mut x: [u128; N] = *val;
-    let num_bits: u32 = BITS;
-
-    for i in 0..num_bits {
-        if __get_bit(exponent, i) {
-            accumulator = __mul::<N, BITS>(&accumulator, &x);
+    if !__is_zero(exponent) {
+        let msb: u32 = __get_msb(exponent);
+        for i in 0..msb + 1 {
+            accumulator = __mul::<N, BITS>(&accumulator, &accumulator);
+            if __get_bit(exponent, msb - i) {
+                accumulator = __mul::<N, BITS>(&accumulator, val);
+            }
         }
-        x = __mul::<N, BITS>(&x, &x);
     }
     accumulator
 }

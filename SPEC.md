@@ -76,13 +76,13 @@ Every shipped type has `BITS >= 254`, so `2^BITS > p`.
 
 ## Arithmetic
 
-`+` and `-` are **checked**: they fail if the result is `>= 2^BITS` or negative. `*` and `__pow` are **wrapping**: results are reduced modulo `2^BITS`. Every result is canonical.
+All arithmetic is **checked**: an operation fails if its result is `>= 2^BITS` or negative. Every result is canonical.
 
 | Operation | Result | Fails if | Range-checks inputs |
 | --- | --- | --- | --- |
 | `a + b` | `value(a) + value(b)` | the sum is `>= 2^BITS` (`attempt to add with overflow`) | no |
 | `a - b` | `value(a) - value(b)` | `value(b) > value(a)` (`attempt to subtract with overflow`) | no |
-| `a * b` | `(a * b) mod 2^BITS` | an input is not canonical, or `N > 65` (compile time) | yes |
+| `a * b` | `value(a) * value(b)` | the product is `>= 2^BITS` (`attempt to multiply with overflow`), an input is not canonical, or `N > 65` (compile time) | yes |
 | `a.div_rem(b)` | `(floor(a / b), a mod b)` | `b == 0`, an input is not canonical, or `N > 65` (compile time) | yes |
 | `a / b` | `floor(a / b)` | as `div_rem` | yes |
 | `a % b` | `a mod b` | as `div_rem` | yes |
@@ -101,10 +101,10 @@ Functions prefixed with `__` generate no constraints. For canonical inputs they 
 | --- | --- | --- |
 | `__add(b)` | as `+` | the sum is `>= 2^BITS` (`attempt to add with overflow`) |
 | `__sub(b)` | as `-` | `value(b) > value(a)` (`attempt to subtract with overflow`) |
-| `__mul(b)` | as `*` | never, for canonical inputs |
+| `__mul(b)` | as `*` | the result is `>= 2^BITS` (`attempt to multiply with overflow`) |
 | `__div_rem(b)` | as `div_rem` | `b == 0` (`attempt to divide by zero`) |
 | `__div(b)` | as `/` | `b == 0` (`attempt to divide by zero`) |
-| `__pow(e)` | `a^e mod 2^BITS`, with `0^0 = 1` | never, for canonical inputs |
+| `__pow(e)` | `a^e`, with `0^0 = 1` | the result is `>= 2^BITS` (`attempt to multiply with overflow`) |
 | `__eq(b)` | limb-wise equality | never |
 | `__is_zero()` | `true` if every limb is zero | never |
 
@@ -136,20 +136,20 @@ Let `±x` be `-x` if the corresponding flag is `true` and `x` otherwise, and let
 
 `evaluate_quadratic_expression` fails unless every term is canonical and
 
-    E ≡ 0 (mod 2^BITS).
+    E = 0
 
-Because every term is range-checked, a relation such as `x * y - z ≡ 0` determines `z` uniquely as `(x * y) mod 2^BITS`.
+over the integers. Because every term is range-checked, a relation such as `x * y - z = 0` determines `z` as exactly `x * y`, and has no solution if `x * y >= 2^BITS`. Intermediate values, such as the products `L_i * R_i`, may exceed `2^BITS` or be negative.
 
 Preconditions:
 
-- **Size bound (compile time).** The parameters `(N, BITS, LHS_N, RHS_N, NUM_PRODUCTS)` must keep every limb of the product below `2^246`, assuming no negated terms. Expressions which may not satisfy this fail to compile with `product limbs may exceed 2^246 at limb k`. As a guide, keep `NUM_PRODUCTS * LHS_N * RHS_N` well below 64. For `N > 65` every expression is rejected, including `NUM_PRODUCTS = LHS_N = RHS_N = 1`.
-- **Completeness.** If the size bound holds and `E ≡ 0 (mod 2^BITS)`, a proof can be generated. The size bound does not account for negated terms, which add `2^(BITS + 1)` per term internally. An expression with many negated terms may therefore satisfy the size bound and still be impossible to prove. See [consistency review](#consistency-review), item 4.
+- **Size bound (compile time).** The parameters `(N, BITS, LHS_N, RHS_N, NUM_PRODUCTS)` must keep the absolute value of every limb of the product below `2^246`. Expressions which may not satisfy this fail to compile with `product limbs may exceed 2^246 at limb k`. As a guide, keep `NUM_PRODUCTS * LHS_N * RHS_N` well below 64. For `N > 65` every expression is rejected, including `NUM_PRODUCTS = LHS_N = RHS_N = 1`.
+- **Completeness.** If the size bound holds, every term is canonical and `E = 0`, a proof can be generated.
 
 ```rust
-pub unconstrained fn compute_quadratic_expression<T: BigInt, ...>(/* as above */) -> (T, T)
+pub unconstrained fn compute_quadratic_expression<T: BigInt, ...>(/* as above */) -> T
 ```
 
-Returns `(q, r)`, where `r = E mod 2^BITS` is canonical. `q` is the quotient `floor(E' / 2^BITS)`, where `E'` is `E` with every negated term `x` replaced by `2^(BITS + 1) - x`. `q` is not range-checked and may not be a valid value of `T`. See [consistency review](#consistency-review), item 5.
+Returns `E`. Fails with `attempt to subtract with overflow` if `E < 0`, and with `attempt to evaluate quadratic expression with overflow` if `E >= 2^BITS`.
 
 ## Internal functions
 
@@ -214,7 +214,7 @@ Observed results for `U256`, with `a = [2^120, 0, 0]` (`2^120` with non-canonica
 | `[0, 1, 0] - a` | `[0, 0, 0]` (correct) | `[0, 0, 0]` (correct) |
 | `a - [0, 1, 0]` | fails (correct: `0`) | fails with `attempt to subtract with overflow` (correct: `0`) |
 | `a * 1` | fails | `[0, 1, 0]` (correct) |
-| `c * c`, with `c = [2^127, 0, 0]` | fails | a canonical but wrong value, `2^254 mod p` (correct: `2^254`) |
+| `c * c`, with `c = [2^127, 0, 0]` | fails | a canonical but wrong value, `2^254 mod p` (correct: `2^254`); `compute_quadratic_expression` returns the same |
 | `a / 1` | fails | `[2^120 - 1, 0, 0]`: wrong (correct: `2^120`) |
 | `b / 1` | fails | `[0, 0, 2^17]`: not a valid `U256` |
 | `a == [0, 1, 0]` | fails | fails |
@@ -233,8 +233,5 @@ Known inconsistencies on `main`, and the open pull requests which address them.
    - In unconstrained execution, `-`, `*`, `/`, `%`, `div_rem` and the `__` functions other than `__add` require canonical inputs but do not check them, and can return wrong or non-canonical results (e.g. `[2^120, 0, 0] / 1` returns `2^120 - 1`, `[2^127, 0, 0]^2` returns `2^254 mod p`, and `[0, 0, 2^17] - 0` returns `2^257`). In constrained execution the same operators either check or never return an incorrect result. `==` and the comparisons check in both modes. Not addressed.
    - In constrained execution, `+` and `-` do not check their inputs, while every other binary operation does. They never return an incorrect result, but `a + b` may succeed where `a == b` or `a * b` fails, and may also fail for non-canonical inputs whose sum is in range. The README documents this.
    - `__eq` compares limbs, so it returns `false` for different encodings of the same value, where `==` fails. Not addressed.
-4. **The expression size bound ignores negated terms.** The compile-time check bounds the product limbs for unnegated terms only, so it may accept expressions which an honest prover cannot prove. The code comments describe this, but no test covers it. Not addressed.
-5. **`compute_quadratic_expression` returns a quotient which includes internal offsets.** When any flag is set, `q` is not the quotient of `E` by `2^BITS`, and it may not be a valid value of `T`. #8 changes the function to return the value of the expression instead.
-6. **Documentation drift.** These comments disagree with the code:
+4. **Documentation drift.** These comments disagree with the code:
    - The `BigInt` trait documentation says single-limb types "may produce incorrect results"; `derive_bigint` rejects them at compile time.
-   - `compute_linear_expressions` refers to a test, `test_evaluate_quadratic_expression_limb_overflow`, which does not exist.

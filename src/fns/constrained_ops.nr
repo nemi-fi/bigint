@@ -1,7 +1,7 @@
 use crate::constants::{GRUMPKIN_MODULUS, TWO_POW_120, TWO_POW_240};
 
 use crate::fns::{
-    expressions::{evaluate_quadratic_expression, validate_div_rem_expression},
+    expressions::validate_mul_add_expression,
     unconstrained_helpers::{
         __from_field, compute_borrow_flags, compute_carry_flags, compute_gte_flags,
         compute_sub_borrow_flags,
@@ -286,22 +286,6 @@ pub fn validate_in_range<let N: u32, let BITS: u32>(limbs: &[u128; N]) {
     (limbs[N - 1] as Field).assert_max_bit_size::<BITS - ((N - 1) * 120)>();
 }
 
-/// Validate quotient produced from `evaluate_quadratic_expression` is well-formed
-///
-/// Because the inputs into `evaluate_quadratic_expression` may cause the quotient to extend beyond `MOD`.
-///           We allow the quotient to extend `6` bits beyond the bit length of `MOD = 2^BITS`, i.e. `quotient < 2^{BITS + 7}`
-///           Why is this?
-///           several factors:    1. quotient * modulus , limbs cannot overflow `Field` boundary (254 bits)
-///                               2. in `evaluate_quadratic_expression`, we require that for `expression - quotient * modulus`,
-///                                  limbs cannot exceed `246` bits (246 magic number due to a higher number adding extra range check gates)
-///           because of factor 2 and the fact that modulus limbs are 120 bits, quotient limbs cannot be > 126 bits
-pub(crate) fn validate_quotient_in_range<let N: u32, let BITS: u32>(limbs: &[u128; N]) {
-    for i in 0..(N - 1) {
-        (limbs[i] as Field).assert_max_bit_size::<120>();
-    }
-    (limbs[N - 1] as Field).assert_max_bit_size::<BITS - (N - 1) * 120 + 7>();
-}
-
 /// Validate that `lhs - rhs` does not underflow i.e. that lhs > rhs over the integers
 ///
 /// Compute `result = lhs - rhs` along with `borrow_flags`,
@@ -427,43 +411,6 @@ pub fn cmp<let N: u32, let BITS: u32>(lhs: &[u128; N], rhs: &[u128; N]) -> Order
 
 // ------------------------------ ARITHMETIC FUNCTIONS ------------------------------
 
-/// Compute the `BigInt` multiplication
-///
-/// Computes `result = lhs * rhs (mod MOD)` by:
-///   1. Computing `result` out of circuit via `__mul`.
-///   2. Constraining the quadratic relation `lhs * rhs - result = 0` with
-///      `evaluate_quadratic_expression`.
-///
-/// ## Soundness
-/// Soundness reduces to `evaluate_quadratic_expression` for the relation
-/// `lhs * rhs - result = 0`
-///
-/// ## Note
-/// When possible, prefer expressing your computation directly as a quadratic
-///   relation and calling `evaluate_quadratic_expression` instead of using `mul`
-pub fn mul<let N: u32, let BITS: u32>(lhs: [u128; N], rhs: [u128; N]) -> [u128; N] {
-    // Safety: we constrain the multiplication result immediately after
-    let result: [u128; N] = unsafe { __mul::<N, BITS>(&lhs, &rhs) };
-    if !std::runtime::is_unconstrained() {
-        // lhs * rhs - result = 0
-        let lhs_terms: [[[u128; N]; 1]; 1] = [[lhs]];
-        let lhs_flags: [[bool; 1]; 1] = [[false]];
-        let rhs_terms: [[[u128; N]; 1]; 1] = [[rhs]];
-        let rhs_flags: [[bool; 1]; 1] = [[false]];
-        let linear_terms: [[u128; N]; 1] = [result];
-        let linear_flags: [bool; 1] = [true];
-        evaluate_quadratic_expression::<N, BITS, 1, 1, 1, 1>(
-            &lhs_terms,
-            &lhs_flags,
-            &rhs_terms,
-            &rhs_flags,
-            &linear_terms,
-            &linear_flags,
-        );
-    }
-    result
-}
-
 /// Add two `BigInt` values, failing if the sum overflows `2^BITS`.
 ///
 /// Computes `result = lhs + rhs` limb-wise with carry flags provided by the prover:
@@ -539,6 +486,24 @@ pub fn sub<let N: u32, let BITS: u32>(lhs: &[u128; N], rhs: &[u128; N]) -> [u128
     }
 }
 
+/// Multiply two `BigInt` values, failing if the product overflows `2^BITS`.
+///
+/// Computes `result = lhs * rhs` out of circuit via `__mul`, then constrains
+/// `lhs * rhs + 0 == result` over the integers with `validate_mul_add_expression`. As `result` is
+/// range-checked to `BITS` bits, no valid `result` exists if `lhs * rhs >= 2^BITS`.
+///
+/// ## Note
+/// For multiple operations, prefer expressing the computation as a single relation and calling
+/// `evaluate_quadratic_expression`.
+pub fn mul<let N: u32, let BITS: u32>(lhs: [u128; N], rhs: [u128; N]) -> [u128; N] {
+    // Safety: we constrain the multiplication result immediately after
+    let result: [u128; N] = unsafe { __mul::<N, BITS>(&lhs, &rhs) };
+    if !std::runtime::is_unconstrained() {
+        validate_mul_add_expression::<N, BITS>(&lhs, &rhs, &[0; N], &result);
+    }
+    result
+}
+
 /// Compute the `BigInt` integer division with remainder
 ///
 /// Computes `quotient = floor(numerator / divisor)` and
@@ -547,11 +512,11 @@ pub fn sub<let N: u32, let BITS: u32>(lhs: &[u128; N], rhs: &[u128; N]) -> [u128
 ///   1. Computing `(quotient, remainder)` out of circuit via `__div_rem`.
 ///   2. Constraining the quadratic relation
 ///        quotient * divisor + remainder - numerator = 0
-///      with `validate_div_rem_expression`.
+///      with `validate_mul_add_expression`.
 ///   3. Enforcing `remainder < divisor`.
 ///
 /// ## Soundness
-/// Soundness reduces to `validate_div_rem_expression` for the relation
+/// Soundness reduces to `validate_mul_add_expression` for the relation
 ///     quotient * divisor + remainder - numerator = 0,
 /// together with `remainder < divisor` check enforced via `validate_gt`.
 ///
@@ -572,7 +537,7 @@ pub fn div_rem<let N: u32, let BITS: u32>(
     let (quotient, remainder): ([u128; N], [u128; N]) = unsafe { __div_rem(numerator, divisor) };
     if !std::runtime::is_unconstrained() {
         // quotient * divisor + remainder - numerator = 0
-        validate_div_rem_expression::<N, BITS>(numerator, divisor, &quotient, &remainder);
+        validate_mul_add_expression::<N, BITS>(&quotient, divisor, &remainder, numerator);
         // remainder < divisor
         validate_gt::<N, BITS>(divisor, &remainder);
     }

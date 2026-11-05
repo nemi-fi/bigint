@@ -19,8 +19,6 @@ mod tests;
 // Exported through the `internal` submodule to make it clear they are not
 // intended for direct use by end users
 pub mod internal {
-    pub use crate::fns::modulus::get_modulus;
-
     // Constrained operations
     pub use crate::fns::constrained_ops::add;
     pub use crate::fns::constrained_ops::assert_is_not_equal;
