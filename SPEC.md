@@ -57,6 +57,9 @@ Every shipped type has `BITS >= 254`, so `2^BITS > p`.
 | Function | Result | Fails if |
 | --- | --- | --- |
 | `From<Field>`: `T::from(x)` | `x` | `x >= 2^BITS` (only possible for `BITS <= 253`). In unconstrained execution this fails with `attempt to convert a Field which does not fit` |
+| `From<u8>`, `From<u16>`, `From<u32>`, `From<u64>`: `T::from(x)` | `x` | never |
+| `From<u128>`: `T::from(x)` | `x` | as `From<Field>`: `x >= 2^BITS` (only possible for `BITS < 128`) |
+| `From<A> for B`, `a.into()`, for pre-defined types `A` narrower than `B` | `value(a)` | `a` is not canonical |
 | `to_field(a)` | `value(a)` as a `Field` | `a` is not canonical, or `value(a) >= p` |
 | `from_be_bytes(bytes)`, `from_le_bytes(bytes)` | the integer encoded by the `(BITS + 7) / 8` bytes | the encoded integer is `>= 2^BITS` |
 | `to_be_bytes(a)`, `to_le_bytes(a)` | the `(BITS + 7) / 8`-byte encoding of `value(a)` | `a` is not canonical |
