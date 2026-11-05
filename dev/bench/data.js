@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793858796240,
+  "lastUpdate": 1793858797761,
   "repoUrl": "https://github.com/noir-lang/bigint",
   "entries": {
     "ACIR Opcodes": [
@@ -16339,6 +16339,345 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/noir-lang/bigint/commit/198595e3855deb9373c9fecf79b7cff9295f943d"
         },
         "date": 1793857236046,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "add_U2048_Bench.json/main",
+            "value": 3216,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "add_U256_Bench.json/main",
+            "value": 2868,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "add_U512_Bench.json/main",
+            "value": 2921,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "assert_is_not_equal_U2048_Bench.json/main",
+            "value": 3027,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "assert_is_not_equal_U256_Bench.json/main",
+            "value": 2803,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "assert_is_not_equal_U512_Bench.json/main",
+            "value": 2833,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "cmp_U2048_Bench.json/main",
+            "value": 3204,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "cmp_U256_Bench.json/main",
+            "value": 2869,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "cmp_U512_Bench.json/main",
+            "value": 2917,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "derive_from_seed_13_elements_U2048_Bench.json/main",
+            "value": 4280,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "derive_from_seed_13_elements_U256_Bench.json/main",
+            "value": 3201,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "derive_from_seed_13_elements_U512_Bench.json/main",
+            "value": 3349,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "div_U2048_Bench.json/main",
+            "value": 3791,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "div_U256_Bench.json/main",
+            "value": 2903,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "div_U512_Bench.json/main",
+            "value": 3001,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "div_rem_U2048_Bench.json/main",
+            "value": 3827,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "div_rem_U256_Bench.json/main",
+            "value": 2909,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "div_rem_U512_Bench.json/main",
+            "value": 3011,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "eq_U2048_Bench.json/main",
+            "value": 3052,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "eq_U256_Bench.json/main",
+            "value": 2841,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "eq_U512_Bench.json/main",
+            "value": 2872,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "evaluate_quadratic_expression_1_element_U2048_Bench.json/main",
+            "value": 3977,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "evaluate_quadratic_expression_1_element_U256_Bench.json/main",
+            "value": 2936,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "evaluate_quadratic_expression_1_element_U512_Bench.json/main",
+            "value": 3053,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "evaluate_quadratic_expression_3_elements_U2048_Bench.json/main",
+            "value": 5062,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "evaluate_quadratic_expression_3_elements_U256_Bench.json/main",
+            "value": 3017,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "evaluate_quadratic_expression_3_elements_U512_Bench.json/main",
+            "value": 3217,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "from_be_bytes_U2048_Bench.json/main",
+            "value": 3369,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "from_be_bytes_U256_Bench.json/main",
+            "value": 2872,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "from_be_bytes_U512_Bench.json/main",
+            "value": 2937,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "from_field_U2048_Bench.json/main",
+            "value": 3070,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "from_field_U256_Bench.json/main",
+            "value": 2844,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "from_field_U512_Bench.json/main",
+            "value": 2877,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "from_le_bytes_U2048_Bench.json/main",
+            "value": 3369,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "from_le_bytes_U256_Bench.json/main",
+            "value": 2872,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "from_le_bytes_U512_Bench.json/main",
+            "value": 2937,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "is_zero_U2048_Bench.json/main",
+            "value": 2885,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "is_zero_U256_Bench.json/main",
+            "value": 2782,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "is_zero_U512_Bench.json/main",
+            "value": 2795,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "mul_U2048_Bench.json/main",
+            "value": 3540,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "mul_U256_Bench.json/main",
+            "value": 2870,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "mul_U512_Bench.json/main",
+            "value": 2938,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "pow_U2048_Bench.json/main",
+            "value": 3145,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "pow_U256_Bench.json/main",
+            "value": 2821,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "pow_U512_Bench.json/main",
+            "value": 2865,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "rem_U2048_Bench.json/main",
+            "value": 3791,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "rem_U256_Bench.json/main",
+            "value": 2903,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "rem_U512_Bench.json/main",
+            "value": 3001,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "sub_U2048_Bench.json/main",
+            "value": 3216,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "sub_U256_Bench.json/main",
+            "value": 2868,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "sub_U512_Bench.json/main",
+            "value": 2921,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "to_be_bytes_U2048_Bench.json/main",
+            "value": 3840,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "to_be_bytes_U256_Bench.json/main",
+            "value": 2939,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "to_be_bytes_U512_Bench.json/main",
+            "value": 3066,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "to_field_U2048_Bench.json/main",
+            "value": 3035,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "to_field_U256_Bench.json/main",
+            "value": 2839,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "to_field_U512_Bench.json/main",
+            "value": 2868,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "to_le_bytes_U2048_Bench.json/main",
+            "value": 3840,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "to_le_bytes_U256_Bench.json/main",
+            "value": 2939,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "to_le_bytes_U512_Bench.json/main",
+            "value": 3066,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "validate_in_range_U2048_Bench.json/main",
+            "value": 2890,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "validate_in_range_U256_Bench.json/main",
+            "value": 2817,
+            "unit": "circuit_size"
+          },
+          {
+            "name": "validate_in_range_U512_Bench.json/main",
+            "value": 2829,
+            "unit": "circuit_size"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "15848336+TomAFrench@users.noreply.github.com",
+            "name": "Tom French",
+            "username": "TomAFrench"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "35055082defba81e3f92ea667358d313aa600850",
+          "message": "chore: fix the single-limb note in the `BigInt` documentation (#29)\n\n`derive_bigint` rejects types with fewer than two limbs at compile time, so the\ntrait documentation no longer says that operations on them may produce incorrect\nresults. This resolves item 3 of the consistency review in SPEC.md.\n\nClaude-Session: https://claude.ai/code/session_01EhqKvDA1t4G18DeHLTw3X4",
+          "timestamp": "2026-11-05T14:06:15+08:00",
+          "tree_id": "5392584e63b44c4b4104c7eeefb97821a0d2d313",
+          "url": "https://github.com/noir-lang/bigint/commit/35055082defba81e3f92ea667358d313aa600850"
+        },
+        "date": 1793858797740,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
