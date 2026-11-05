@@ -208,13 +208,11 @@ Known inconsistencies on `main`, and the open pull requests which address them.
 1. **`assert_is_not_equal` has a stricter precondition than `!=`.** For every shipped type (`BITS >= 254`) it fails for distinct values congruent modulo `p`, whereas `assert(a != b)` does not. An honest prover with such values cannot produce a proof. Not addressed.
 2. **Canonical-input handling differs between functions and between execution modes** (see [canonical inputs](#canonical-inputs)):
    - In unconstrained execution, `-`, `*`, `sqr`, `/`, `udiv_mod`, `umod` and the `__` functions other than `__add` require canonical inputs but do not check them, and can return wrong or non-canonical results (e.g. `[2^120, 0, 0] / 1` returns `2^120 - 1`, `[2^127, 0, 0]^2` returns `2^254 mod p`, and `[0, 0, 2^17] - 0` returns `2^257`). In constrained execution the same operators either check or are correct for any limbs. `==` and the comparisons check in both modes. Not addressed.
-   - In constrained execution, `+` and `-` do not check their inputs, while every other binary operation does. They never return an incorrect result, but `a + b` may succeed where `a == b` or `a * b` fails, and may also fail for non-canonical inputs whose sum is in range. #20 documents this.
+   - In constrained execution, `+` and `-` do not check their inputs, while every other binary operation does. They never return an incorrect result, but `a + b` may succeed where `a == b` or `a * b` fails, and may also fail for non-canonical inputs whose sum is in range. The README documents the first part.
    - `__eq` compares limbs, so it returns `false` for different encodings of the same value, where `==` fails. Not addressed.
 3. **Unconstrained `From<Field>` does not check the width.** For a custom type with `BITS <= 253`, the constrained conversion fails for `x >= 2^BITS`, but the unconstrained one returns non-canonical limbs. Addressed by #16.
 4. **`to_be_bytes` and `to_le_bytes` only range-check the top limb to a byte boundary.** For a custom type with `BITS % 8 != 0`, they can serialize a non-canonical value into bytes which `from_be_bytes` rejects. Addressed by #19.
 5. **Documentation drift.** These comments disagree with the code:
    - The `BigInt` trait documentation says single-limb types "may produce incorrect results"; `derive_bigint` rejects them at compile time.
-   - The doc comment of `evaluate_quadratic_expression` describes `product(lhs_terms[i])` and a relation `== 0 (mod 2^BITS)`. The code computes a sum, and the relation holds over the integers.
+   - The README says `+` and `-` "produce a correct, range-checked result for any `u128` limbs". They never return an incorrect result, but they can fail for non-canonical inputs whose result is in range, e.g. `[2^120, 0, 0] - [0, 1, 0]`.
    - The 256-byte limit on `derive_from_seed` seeds is not documented on the trait.
-
-   #20 fixes some of these.
