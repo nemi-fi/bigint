@@ -230,5 +230,3 @@ Known inconsistencies on `main`, and the open pull requests which address them.
 2. **Canonical-input handling differs between functions and between execution modes** (see [canonical inputs](#canonical-inputs)). No function returns an incorrect result for unchecked inputs in either mode, but:
    - In constrained execution, `+` and `-` do not check their inputs, while every other binary operation does. They never return an incorrect result, but `a + b` may succeed where `a == b` or `a * b` fails, and may also fail for non-canonical inputs whose sum is in range. The README documents this.
    - In unconstrained execution, `+` and `__add` do not check their inputs, while `-` and the other `__` functions do. So `[0, 1, 0] - [2^120, 0, 0]` succeeds in a circuit but fails in unconstrained code.
-3. **Documentation drift.** These comments disagree with the code:
-   - The `BigInt` trait documentation says single-limb types "may produce incorrect results"; `derive_bigint` rejects them at compile time.
