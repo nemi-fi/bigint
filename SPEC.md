@@ -53,7 +53,7 @@ Every shipped type has `BITS >= 254`, so `2^BITS > p`.
 | `get_limb(i)` | `limbs[i]` | `i >= N` |
 | `set_limb(i, v)` | sets `limbs[i] = v` | `i >= N`, or `v >= 2^120` (`i < N - 1`) or `v >= 2^TOP` (`i = N - 1`) |
 | `set_limb_unsafe(i, v)` | sets `limbs[i] = v`, unchecked | `i >= N` |
-| `validate_in_range()` | nothing | the value is not canonical |
+| `validate_in_range()` | nothing | the value is not canonical. In unconstrained execution this fails with `BigInt is not in range` |
 
 ## Conversions
 
@@ -104,19 +104,19 @@ Functions prefixed with `__` generate no constraints. For canonical inputs they 
 | Function | Result | Fails if |
 | --- | --- | --- |
 | `__add(b)` | as `+` | the sum is `>= 2^BITS` (`attempt to add with overflow`) |
-| `__sub(b)` | as `-` | `value(b) > value(a)` (`attempt to subtract with overflow`) |
-| `__mul(b)` | as `*` | the result is `>= 2^BITS` (`attempt to multiply with overflow`) |
-| `__div_rem(b)` | as `div_rem` | `b == 0` (`attempt to divide by zero`) |
-| `__div(b)` | as `/` | `b == 0` (`attempt to divide by zero`) |
-| `__pow(e)` | `a^e`, with `0^0 = 1` | the result is `>= 2^BITS` (`attempt to multiply with overflow`) |
-| `__eq(b)` | limb-wise equality | never |
+| `__sub(b)` | as `-` | an input is not canonical (`BigInt is not in range`), or `value(b) > value(a)` (`attempt to subtract with overflow`) |
+| `__mul(b)` | as `*` | an input is not canonical (`BigInt is not in range`), or the result is `>= 2^BITS` (`attempt to multiply with overflow`) |
+| `__div_rem(b)` | as `div_rem` | an input is not canonical (`BigInt is not in range`), or `b == 0` (`attempt to divide by zero`) |
+| `__div(b)` | as `/` | as `__div_rem` |
+| `__pow(e)` | `a^e`, with `0^0 = 1` | an input is not canonical (`BigInt is not in range`), or the result is `>= 2^BITS` (`attempt to multiply with overflow`) |
+| `__eq(b)` | `value(a) == value(b)` | an input is not canonical (`BigInt is not in range`) |
 | `__is_zero()` | `true` if every limb is zero | never |
 
-`__eq` compares limbs, not values. It agrees with `==` for canonical inputs. For unchecked inputs `==` fails instead.
+`__eq` checks its inputs, as `==` does, and then compares limbs: canonical values are equal exactly when their limbs are.
 
 ### Constrained functions in unconstrained code
 
-When called from unconstrained code, `+`, `-`, `*`, `/`, `%` and `div_rem` skip their checks and return the unconstrained result. All other functions perform their checks as assertions. The results agree with constrained execution for canonical inputs, but not for unchecked inputs: see [canonical inputs](#canonical-inputs).
+When called from unconstrained code, `+`, `-`, `*`, `/`, `%` and `div_rem` skip their constraints and compute their result as the corresponding `__` function does: `+` as `__add`, and the others after checking that their inputs are canonical. All other functions perform their checks as assertions. The results agree with constrained execution for canonical inputs. For unchecked inputs, every function either returns the correct result or fails, in both modes, but a function may fail in one mode and succeed in the other: see [canonical inputs](#canonical-inputs).
 
 ## Quadratic expressions
 
@@ -153,7 +153,7 @@ Preconditions:
 pub unconstrained fn compute_quadratic_expression<T: BigInt, ...>(/* as above */) -> T
 ```
 
-Returns `E`. Fails with `attempt to subtract with overflow` if `E < 0`, and with `attempt to evaluate quadratic expression with overflow` if `E >= 2^BITS`.
+Returns `E`. Fails with `BigInt is not in range` if a term is not canonical, with `attempt to subtract with overflow` if `E < 0`, and with `attempt to evaluate quadratic expression with overflow` if `E >= 2^BITS`.
 
 ## Internal functions
 
@@ -191,10 +191,10 @@ A function in the last class may return a wrong or non-canonical result. That is
 
 | Function | Constrained execution | Unconstrained execution |
 | --- | --- | --- |
-| `+` | never incorrect | correct for any limbs |
-| `-` | never incorrect | requires but does not check |
-| `*` | checks | requires but does not check |
-| `/`, `%`, `div_rem` | checks | requires but does not check |
+| `+` | never incorrect | never incorrect |
+| `-` | never incorrect | checks |
+| `*` | checks | checks |
+| `/`, `%`, `div_rem` | checks | checks |
 | `==`, `!=`, `<`, `<=`, `>`, `>=`, `cmp` | checks | checks |
 | `is_zero` | correct for any limbs | correct for any limbs |
 | `assert_is_not_equal(a, b)` | checks | checks |
@@ -203,35 +203,35 @@ A function in the last class may return a wrong or non-canonical result. That is
 | `to_be_bytes`, `to_le_bytes` | checks | checks |
 | `evaluate_quadratic_expression` | checks | checks |
 | `set_limb` | checks the new limb only | checks the new limb only |
-| `__add` | — | correct for any limbs |
-| `__sub`, `__mul`, `__pow`, `__div`, `__div_rem`, `compute_quadratic_expression` | — | requires but does not check |
-| `__eq` | — | requires but does not check (compares limbs, not values) |
+| `__add` | — | never incorrect |
+| `__sub`, `__mul`, `__pow`, `__div`, `__div_rem`, `__eq`, `compute_quadratic_expression` | — | checks |
 | `__is_zero` | — | correct for any limbs |
 
-Observed results for `U256`, with `a = [2^120, 0, 0]` (`2^120` with non-canonical limbs) and `b = [0, 0, 2^17]` (`2^257`):
+No public function is in the last class. `+` and `__add` compute each limb sum in a `u128`, so they fail if two limbs sum to `2^128` or more, even if the result is in range (e.g. `[2^127, 0, 0] + [2^127, 0, 0]`). In unconstrained execution, the functions which check fail with `BigInt is not in range`.
+
+Observed results for `U256`, with `a = [2^120, 0, 0]` (`2^120` with non-canonical limbs), `b = [0, 0, 2^17]` (`2^257`) and `c = [2^127, 0, 0]` (`2^127` with non-canonical limbs):
 
 | Expression | Constrained | Unconstrained |
 | --- | --- | --- |
-| `a + 1` | `[1, 1, 0]` (correct) | — |
+| `a + 1` | `[1, 1, 0]` (correct) | `[1, 1, 0]` (correct) |
 | `b + 0` | fails with `attempt to add with overflow` | fails with `attempt to add with overflow` |
-| `b - 0` | fails | `[0, 0, 2^17]`: not a valid `U256` |
-| `[0, 1, 0] - a` | `[0, 0, 0]` (correct) | `[0, 0, 0]` (correct) |
-| `a - [0, 1, 0]` | fails (correct: `0`) | fails with `attempt to subtract with overflow` (correct: `0`) |
-| `a * 1` | fails | `[0, 1, 0]` (correct) |
-| `c * c`, with `c = [2^127, 0, 0]` | fails | a canonical but wrong value, `2^254 mod p` (correct: `2^254`); `compute_quadratic_expression` returns the same |
-| `a / 1` | fails | `[2^120 - 1, 0, 0]`: wrong (correct: `2^120`) |
-| `b / 1` | fails | `[0, 0, 2^17]`: not a valid `U256` |
-| `a == [0, 1, 0]` | fails | fails |
-| `a.__eq([0, 1, 0])` | — | `false`, although the values are equal |
-| `assert_is_not_equal(a, [0, 1, 0])` | fails | fails |
+| `c + c` | fails with `attempt to add with overflow` (correct: `2^128`) | fails with `attempt to add with overflow` (correct: `2^128`) |
+| `b - 0` | fails | fails with `BigInt is not in range` |
+| `[0, 1, 0] - a` | `[0, 0, 0]` (correct) | fails with `BigInt is not in range` (correct: `0`) |
+| `a - [0, 1, 0]` | fails (correct: `0`) | fails with `BigInt is not in range` (correct: `0`) |
+| `a * 1` | fails | fails with `BigInt is not in range` |
+| `c * c` | fails | fails with `BigInt is not in range`; `compute_quadratic_expression` too |
+| `a / 1`, `b / 1` | fails | fails with `BigInt is not in range` |
+| `a == [0, 1, 0]` | fails | fails with `BigInt is not in range` |
+| `a.__eq([0, 1, 0])` | — | fails with `BigInt is not in range` |
+| `assert_is_not_equal(a, [0, 1, 0])` | fails | fails with `BigInt is not in range` |
 
-So in constrained execution no function returns a wrong result for unchecked inputs. In unconstrained execution, the same operator can return a wrong result where constrained execution fails. See [consistency review](#consistency-review), item 2.
+So in both modes no function returns a wrong result for unchecked inputs. The modes may differ in which unchecked inputs they accept: `-` checks its inputs only in unconstrained execution. See [consistency review](#consistency-review), item 1.
 
 ## Consistency review
 
 Known inconsistencies on `main`, and the open pull requests which address them.
 
-2. **Canonical-input handling differs between functions and between execution modes** (see [canonical inputs](#canonical-inputs)):
-   - In unconstrained execution, `-`, `*`, `/`, `%`, `div_rem` and the `__` functions other than `__add` require canonical inputs but do not check them, and can return wrong or non-canonical results (e.g. `[2^120, 0, 0] / 1` returns `2^120 - 1`, `[2^127, 0, 0]^2` returns `2^254 mod p`, and `[0, 0, 2^17] - 0` returns `2^257`). In constrained execution the same operators either check or never return an incorrect result. `==` and the comparisons check in both modes. Not addressed.
+1. **Canonical-input handling differs between functions and between execution modes** (see [canonical inputs](#canonical-inputs)). No function returns an incorrect result for unchecked inputs in either mode, but:
    - In constrained execution, `+` and `-` do not check their inputs, while every other binary operation does. They never return an incorrect result, but `a + b` may succeed where `a == b` or `a * b` fails, and may also fail for non-canonical inputs whose sum is in range. The README documents this.
-   - `__eq` compares limbs, so it returns `false` for different encodings of the same value, where `==` fails. Not addressed.
+   - In unconstrained execution, `+` and `__add` do not check their inputs, while `-` and the other `__` functions do. So `[0, 1, 0] - [2^120, 0, 0]` succeeds in a circuit but fails in unconstrained code.

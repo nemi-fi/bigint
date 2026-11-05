@@ -72,7 +72,9 @@ fn test_sub_underflow_regression() {
 // Tests to confirm that a witness cannot hide an extra multiple of `2^BITS`, as the relations are
 // exact and `2^BITS` is not representable
 
-#[test(should_fail_with = "call to assert_max_bit_size")]
+// Fuzz tests run in both runtimes, and the failing range check has a different message in each
+// (`call to assert_max_bit_size` in a circuit, `BigInt is not in range` in unconstrained code).
+#[test(should_fail)]
 fn test_evaluate_quadratic_expression_add_rejects_hidden_two_pow_bits_fuzz(
     xseed: [u8; 4],
     yseed: [u8; 3],
@@ -95,7 +97,8 @@ fn test_evaluate_quadratic_expression_add_rejects_hidden_two_pow_bits_fuzz(
     evaluate_quadratic_expression([[]], [[]], [[]], [[]], [x, y, z], [false, false, true]);
 }
 
-#[test(should_fail_with = "call to assert_max_bit_size")]
+// As above, the message differs between the runtimes
+#[test(should_fail)]
 fn test_evaluate_quadratic_expression_mul_rejects_hidden_two_pow_bits_fuzz(
     xseed: [u8; 1],
     yseed: [u8; 2],
@@ -1203,7 +1206,7 @@ fn test_assert_is_not_equal_non_canonical_equal_across_pairs_U256() {
     assert_is_not_equal(a, b);
 }
 
-#[test(should_fail)]
+#[test(should_fail_with = "BigInt is not in range")]
 unconstrained fn test_assert_is_not_equal_non_canonical_equal_unconstrained_U256() {
     let a: U256 = U256::from_limbs_unsafe([0, TWO_POW_120, 0]);
     let b: U256 = U256::from_limbs([0, 0, 1]);
@@ -1683,4 +1686,201 @@ fn test_2048_bit_mul_overflow() {
         0x000000000000000000000000000031,
     ]);
     let _: U2048 = a * b;
+}
+
+// ------------------------------ UNCONSTRAINED INPUT CHECKS ------------------------------
+
+// In unconstrained execution, every operation either returns the correct value for its inputs'
+// integer values or fails. Operations which require canonical inputs check them.
+//
+// `[2^120, 0, 0]` encodes `2^120` with non-canonical limbs.
+global NON_CANONICAL_TWO_POW_120: [u128; 3] = [TWO_POW_120, 0, 0];
+// `[0, 0, 2^17]` encodes `2^257`, which does not fit in a `U256`.
+global TWO_POW_257: [u128; 3] = [0, 0, 0x20000];
+// `[2^127, 0, 0]` encodes `2^127` with non-canonical limbs. Its square is `2^254`.
+global NON_CANONICAL_TWO_POW_127: [u128; 3] = [0x80000000000000000000000000000000, 0, 0];
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained_sub_checks_lhs() {
+    let a: U256 = U256::from_limbs_unsafe(NON_CANONICAL_TWO_POW_120);
+    let _ = a - U256::from_limbs([0, 1, 0]);
+}
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained_sub_checks_rhs() {
+    let a: U256 = U256::from_limbs_unsafe(NON_CANONICAL_TWO_POW_120);
+    let _ = U256::from_limbs([0, 1, 0]) - a;
+}
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained_sub_checks_out_of_range() {
+    let b: U256 = U256::from_limbs_unsafe(TWO_POW_257);
+    let _ = b - U256::zero();
+}
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained___sub_checks_lhs() {
+    let b: U256 = U256::from_limbs_unsafe(TWO_POW_257);
+    let _ = b.__sub(&U256::zero());
+}
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained___sub_checks_rhs() {
+    let a: U256 = U256::from_limbs_unsafe(NON_CANONICAL_TWO_POW_120);
+    let _ = U256::from_limbs([0, 1, 0]).__sub(&a);
+}
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained_mul_checks_lhs() {
+    let c: U256 = U256::from_limbs_unsafe(NON_CANONICAL_TWO_POW_127);
+    let _ = c * U256::one();
+}
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained_mul_checks_rhs() {
+    let c: U256 = U256::from_limbs_unsafe(NON_CANONICAL_TWO_POW_127);
+    let _ = U256::one() * c;
+}
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained___mul_checks_lhs() {
+    let c: U256 = U256::from_limbs_unsafe(NON_CANONICAL_TWO_POW_127);
+    let _ = c.__mul(&c);
+}
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained___mul_checks_rhs() {
+    let c: U256 = U256::from_limbs_unsafe(NON_CANONICAL_TWO_POW_127);
+    let _ = U256::one().__mul(&c);
+}
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained_div_checks_numerator() {
+    let a: U256 = U256::from_limbs_unsafe(NON_CANONICAL_TWO_POW_120);
+    let _ = a / U256::one();
+}
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained_div_checks_out_of_range() {
+    let b: U256 = U256::from_limbs_unsafe(TWO_POW_257);
+    let _ = b / U256::one();
+}
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained_div_checks_divisor() {
+    let a: U256 = U256::from_limbs_unsafe(NON_CANONICAL_TWO_POW_120);
+    let _ = U256::one() / a;
+}
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained_rem_checks_numerator() {
+    let a: U256 = U256::from_limbs_unsafe(NON_CANONICAL_TWO_POW_120);
+    let _ = a % U256::from(3);
+}
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained_div_rem_checks_numerator() {
+    let a: U256 = U256::from_limbs_unsafe(NON_CANONICAL_TWO_POW_120);
+    let _ = a.div_rem(&U256::one());
+}
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained___div_checks_numerator() {
+    let a: U256 = U256::from_limbs_unsafe(NON_CANONICAL_TWO_POW_120);
+    let _ = a.__div(&U256::one());
+}
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained___div_rem_checks_numerator() {
+    let a: U256 = U256::from_limbs_unsafe(NON_CANONICAL_TWO_POW_120);
+    let _ = a.__div_rem(&U256::one());
+}
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained___div_rem_checks_divisor() {
+    let a: U256 = U256::from_limbs_unsafe(NON_CANONICAL_TWO_POW_120);
+    let _ = U256::one().__div_rem(&a);
+}
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained___pow_checks_base() {
+    let c: U256 = U256::from_limbs_unsafe(NON_CANONICAL_TWO_POW_127);
+    let _ = c.__pow(&U256::from(2));
+}
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained___pow_checks_exponent() {
+    let e: U256 = U256::from_limbs_unsafe([TWO_POW_120 + 1, 0, 0]);
+    let _ = U256::one().__pow(&e);
+}
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained___eq_checks_lhs() {
+    let a: U256 = U256::from_limbs_unsafe(NON_CANONICAL_TWO_POW_120);
+    let _ = a.__eq(&U256::from_limbs([0, 1, 0]));
+}
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained___eq_checks_rhs() {
+    let a: U256 = U256::from_limbs_unsafe(NON_CANONICAL_TWO_POW_120);
+    let _ = U256::from_limbs([0, 1, 0]).__eq(&a);
+}
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained_compute_quadratic_expression_checks_lhs() {
+    let c: U256 = U256::from_limbs_unsafe(NON_CANONICAL_TWO_POW_127);
+    let one: U256 = U256::one();
+    let _: U256 = compute_quadratic_expression([[c]], [[false]], [[one]], [[false]], [], []);
+}
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained_compute_quadratic_expression_checks_rhs() {
+    let c: U256 = U256::from_limbs_unsafe(NON_CANONICAL_TWO_POW_127);
+    let one: U256 = U256::one();
+    let _: U256 = compute_quadratic_expression([[one]], [[false]], [[c]], [[false]], [], []);
+}
+
+#[test(should_fail_with = "BigInt is not in range")]
+unconstrained fn test_unconstrained_compute_quadratic_expression_checks_linear_terms() {
+    let b: U256 = U256::from_limbs_unsafe(TWO_POW_257);
+    let _: U256 = compute_quadratic_expression([[]], [[]], [[]], [[]], [b], [false]);
+}
+
+// `+` does not check its inputs: it returns the correct sum for non-canonical limbs, or fails
+#[test]
+unconstrained fn test_unconstrained_add_non_canonical() {
+    let a: U256 = U256::from_limbs_unsafe(NON_CANONICAL_TWO_POW_120);
+    assert((a + U256::one()).get_limbs() == [1, 1, 0]);
+    assert(a.__add(&U256::one()).get_limbs() == [1, 1, 0]);
+}
+
+#[test(should_fail_with = "attempt to add with overflow")]
+unconstrained fn test_unconstrained_add_out_of_range() {
+    let b: U256 = U256::from_limbs_unsafe(TWO_POW_257);
+    let _ = b.__add(&U256::zero());
+}
+
+// The sum `2^128` is in range, but the limbs overflow a `u128`
+#[test(should_fail_with = "attempt to add with overflow")]
+unconstrained fn test_unconstrained_add_limb_overflow() {
+    let c: U256 = U256::from_limbs_unsafe(NON_CANONICAL_TWO_POW_127);
+    let _ = c + c;
+}
+
+// The checks do not reject canonical inputs
+#[test]
+unconstrained fn test_unconstrained_ops_accept_canonical() {
+    let x: U256 = U256::from_limbs(U256_MAX);
+    let y: U256 = U256::from_limbs([TWO_POW_120 - 1, 0, 0]);
+    assert(x - y == U256::from_limbs([0, TWO_POW_120 - 1, 0xffff]));
+    assert(y * y == U256::from_limbs([1, TWO_POW_120 - 2, 0]));
+    let (q, r): (U256, U256) = x.__div_rem(&y);
+    assert(q * y + r == x);
+    assert(x.__div(&y) == x / y);
+    assert(x % y == r);
+    assert(y.__pow(&U256::from(2)) == y.__mul(&y));
+    assert(x.__eq(&x));
+    assert(!x.__eq(&y));
+    let r2: U256 = compute_quadratic_expression([[y]], [[false]], [[y]], [[false]], [y], [true]);
+    assert(r2 == y * y - y);
 }
