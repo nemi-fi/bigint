@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793851717262,
+  "lastUpdate": 1793852628426,
   "repoUrl": "https://github.com/noir-lang/bigint",
   "entries": {
     "ACIR Opcodes": [
@@ -5159,6 +5159,345 @@ window.BENCHMARK_DATA = {
           {
             "name": "assert_is_not_zero_U512_Bench.json/main",
             "value": 7,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "cmp_U2048_Bench.json/main",
+            "value": 187,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "cmp_U256_Bench.json/main",
+            "value": 37,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "cmp_U512_Bench.json/main",
+            "value": 57,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "derive_from_seed_13_elements_U2048_Bench.json/main",
+            "value": 323,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "derive_from_seed_13_elements_U256_Bench.json/main",
+            "value": 77,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "derive_from_seed_13_elements_U512_Bench.json/main",
+            "value": 112,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "div_U2048_Bench.json/main",
+            "value": 217,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "div_U256_Bench.json/main",
+            "value": 37,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "div_U512_Bench.json/main",
+            "value": 61,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "div_rem_U2048_Bench.json/main",
+            "value": 235,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "div_rem_U256_Bench.json/main",
+            "value": 40,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "div_rem_U512_Bench.json/main",
+            "value": 66,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "eq_U2048_Bench.json/main",
+            "value": 125,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "eq_U256_Bench.json/main",
+            "value": 20,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "eq_U512_Bench.json/main",
+            "value": 34,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_1_element_U2048_Bench.json/main",
+            "value": 363,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_1_element_U256_Bench.json/main",
+            "value": 63,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_1_element_U512_Bench.json/main",
+            "value": 103,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_3_elements_U2048_Bench.json/main",
+            "value": 511,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_3_elements_U256_Bench.json/main",
+            "value": 91,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_3_elements_U512_Bench.json/main",
+            "value": 147,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_be_bytes_U2048_Bench.json/main",
+            "value": 321,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_be_bytes_U256_Bench.json/main",
+            "value": 41,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_be_bytes_U512_Bench.json/main",
+            "value": 79,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_field_U2048_Bench.json/main",
+            "value": 94,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_field_U256_Bench.json/main",
+            "value": 19,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_field_U512_Bench.json/main",
+            "value": 29,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_le_bytes_U2048_Bench.json/main",
+            "value": 321,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_le_bytes_U256_Bench.json/main",
+            "value": 41,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_le_bytes_U512_Bench.json/main",
+            "value": 79,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "is_zero_U2048_Bench.json/main",
+            "value": 23,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "is_zero_U256_Bench.json/main",
+            "value": 8,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "is_zero_U512_Bench.json/main",
+            "value": 10,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "mul_U2048_Bench.json/main",
+            "value": 195,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "mul_U256_Bench.json/main",
+            "value": 30,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "mul_U512_Bench.json/main",
+            "value": 52,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "pow_U2048_Bench.json/main",
+            "value": 73,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "pow_U256_Bench.json/main",
+            "value": 13,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "pow_U512_Bench.json/main",
+            "value": 21,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "rem_U2048_Bench.json/main",
+            "value": 217,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "rem_U256_Bench.json/main",
+            "value": 37,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "rem_U512_Bench.json/main",
+            "value": 61,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "sub_U2048_Bench.json/main",
+            "value": 126,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "sub_U256_Bench.json/main",
+            "value": 21,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "sub_U512_Bench.json/main",
+            "value": 35,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_be_bytes_U2048_Bench.json/main",
+            "value": 566,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_be_bytes_U256_Bench.json/main",
+            "value": 73,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_be_bytes_U512_Bench.json/main",
+            "value": 143,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_field_U2048_Bench.json/main",
+            "value": 75,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_field_U256_Bench.json/main",
+            "value": 15,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_field_U512_Bench.json/main",
+            "value": 23,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_le_bytes_U2048_Bench.json/main",
+            "value": 566,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_le_bytes_U256_Bench.json/main",
+            "value": 73,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_le_bytes_U512_Bench.json/main",
+            "value": 143,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "validate_in_range_U2048_Bench.json/main",
+            "value": 18,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "validate_in_range_U256_Bench.json/main",
+            "value": 3,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "validate_in_range_U512_Bench.json/main",
+            "value": 5,
+            "unit": "acir_opcodes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "15848336+TomAFrench@users.noreply.github.com",
+            "name": "Tom French",
+            "username": "TomAFrench"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2b7bdc592046ce897c14b08ab1bca2eeab08414c",
+          "message": "chore!: remove `assert_is_not_zero` (#23)\n\n* feat!: rename `udiv_mod` to `div_rem` and implement `%`\n\nThe `u` prefix distinguished integer division from modular division,\nand `umod` the remainder from the modulus, which no longer exist.\n\n- `udiv_mod` / `__udiv_mod` are renamed to `div_rem` / `__div_rem`. This\n  is Euclidean division, which coincides with floored and truncated\n  division for unsigned integers.\n- `umod` is replaced by an implementation of `std::ops::Rem`, i.e. `%`,\n  which is now a supertrait of `BigInt`.\n\nBREAKING CHANGE: `udiv_mod` and `__udiv_mod` are renamed to `div_rem` and\n`__div_rem`, and `umod(&b)` is replaced by `% b`.\n\n* chore!: remove `__div` and `assert_is_not_zero`\n\n`__div(&b)` is exactly `__div_rem(&b).0` (and had no `__rem` counterpart), and `assert_is_not_zero()` is exactly `assert(!is_zero())`, i.e. the same circuit. The internal `assert_is_not_zero` used by `validate_gt` is kept.\n\nBREAKING CHANGE: `BigInt::__div` and `BigInt::assert_is_not_zero` are removed. Use `__div_rem(&b).0` and `assert(!x.is_zero())` instead.\n\n* docs: update SPEC.md for div_rem and %\n\n* docs: update SPEC.md for the removal of __div and assert_is_not_zero\n\n* chore!: remove the internal assert_is_not_zero function\n\nIt only backed the removed BigInt::assert_is_not_zero and has no remaining\ncallers. assert_is_not_zero_integer is kept, as validate_gt uses it.\n\nClaude-Session: https://claude.ai/code/session_01EhqKvDA1t4G18DeHLTw3X4\n\n* chore: keep __div\n\nKeep the unconstrained __div, for consistency with the other unconstrained\ncounterparts of the operators (__add, __sub, __mul).\n\nClaude-Session: https://claude.ai/code/session_01EhqKvDA1t4G18DeHLTw3X4",
+          "timestamp": "2026-11-05T12:23:30+08:00",
+          "tree_id": "47ada8a9b38d5f55fe27ec553acb3c40f4ab3a0f",
+          "url": "https://github.com/noir-lang/bigint/commit/2b7bdc592046ce897c14b08ab1bca2eeab08414c"
+        },
+        "date": 1793852627679,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "add_U2048_Bench.json/main",
+            "value": 126,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "add_U256_Bench.json/main",
+            "value": 21,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "add_U512_Bench.json/main",
+            "value": 35,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "assert_is_not_equal_U2048_Bench.json/main",
+            "value": 38,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "assert_is_not_equal_U256_Bench.json/main",
+            "value": 8,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "assert_is_not_equal_U512_Bench.json/main",
+            "value": 12,
             "unit": "acir_opcodes"
           },
           {
