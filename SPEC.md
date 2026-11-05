@@ -14,6 +14,12 @@ Every pull request which changes behaviour must update this document in the same
 - An operation **fails** if no valid proof exists for it. For constrained code this is a constraint failure; most failures also abort execution with an assertion message. Unconstrained functions fail by aborting execution.
 - **Unchecked values** are values which may not be canonical: circuit inputs (whose limbs are only known to be `u128`s), values returned from unconstrained functions, and values built with `from_limbs_unsafe` or `set_limb_unsafe`. As limbs have type `u128`, every limb of every value is below `2^128`. A non-canonical value may encode an integer in `[0, 2^BITS)` with different limbs (e.g. `[2^120, 0, 0]` for `2^120`), or an integer `>= 2^BITS`. [Canonical inputs](#canonical-inputs) describes how each function handles them.
 
+## Requirements
+
+The library's functions must meet these requirements. A function which does not has a bug, which is listed in the [consistency review](#consistency-review) until it is fixed.
+
+- **Equality distinguishes distinct canonical values.** If `a` and `b` are canonical and `value(a) != value(b)`, the equality tests (`==`, `!=`, `__eq` and `assert_is_not_equal`) treat them as different. So equality must not be tested via the values' encodings in `Field`: when `BITS >= 254`, distinct values which differ by a multiple of `p` have the same encoding.
+
 ## Types
 
 `#[derive_bigint(BITS)]` implements `BigInt` for a struct with a single field `limbs: [u128; N]`. It fails to compile unless:
@@ -68,11 +74,11 @@ Every shipped type has `BITS >= 254`, so `2^BITS > p`.
 | `a == b`, `a != b` | `value(a) == value(b)` | yes |
 | `a < b`, `a <= b`, `a > b`, `a >= b`, `cmp` | integer ordering of `value(a)` and `value(b)` | yes |
 | `is_zero(a)` | `value(a) == 0` | no |
-| `assert_is_not_equal(a, b)` | fails if `value(a) ≡ value(b) (mod p)` | no |
+| `assert_is_not_equal(a, b)` | fails if `value(a) == value(b)` | yes |
 
 `is_zero` is correct for unchecked values, as a value whose limbs are all non-negative is zero only if every limb is zero.
 
-`assert_is_not_equal` compares values via their encodings in `Field`. It is sound (it always fails if `value(a) == value(b)`), but when `BITS >= 254` it also fails for distinct values whose difference is a multiple of `p`. See [consistency review](#consistency-review), item 1.
+`assert_is_not_equal(a, b)` succeeds exactly when `assert(a != b)` does, for every `BITS`, and is cheaper.
 
 ## Arithmetic
 
@@ -191,7 +197,7 @@ A function in the last class may return a wrong or non-canonical result. That is
 | `/`, `%`, `div_rem` | checks | checks |
 | `==`, `!=`, `<`, `<=`, `>`, `>=`, `cmp` | checks | checks |
 | `is_zero` | correct for any limbs | correct for any limbs |
-| `assert_is_not_equal` | correct for any limbs (compares modulo `p`) | correct for any limbs (compares modulo `p`) |
+| `assert_is_not_equal(a, b)` | checks | checks |
 | `to_field` | checks | checks |
 | `From<A> for B` (widening) | checks | checks |
 | `to_be_bytes`, `to_le_bytes` | checks | checks |
@@ -218,15 +224,14 @@ Observed results for `U256`, with `a = [2^120, 0, 0]` (`2^120` with non-canonica
 | `a / 1`, `b / 1` | fails | fails with `BigInt is not in range` |
 | `a == [0, 1, 0]` | fails | fails with `BigInt is not in range` |
 | `a.__eq([0, 1, 0])` | — | fails with `BigInt is not in range` |
-| `a.assert_is_not_equal([0, 1, 0])` | fails (the values are equal) | fails (the values are equal) |
+| `assert_is_not_equal(a, [0, 1, 0])` | fails | fails with `BigInt is not in range` |
 
-So in both modes no function returns a wrong result for unchecked inputs. The modes may differ in which unchecked inputs they accept: `-` checks its inputs only in unconstrained execution. See [consistency review](#consistency-review), item 2.
+So in both modes no function returns a wrong result for unchecked inputs. The modes may differ in which unchecked inputs they accept: `-` checks its inputs only in unconstrained execution. See [consistency review](#consistency-review), item 1.
 
 ## Consistency review
 
 Known inconsistencies on `main`, and the open pull requests which address them.
 
-1. **`assert_is_not_equal` has a stricter precondition than `!=`.** For every shipped type (`BITS >= 254`) it fails for distinct values congruent modulo `p`, whereas `assert(a != b)` does not. An honest prover with such values cannot produce a proof. Not addressed.
-2. **Canonical-input handling differs between functions and between execution modes** (see [canonical inputs](#canonical-inputs)). No function returns an incorrect result for unchecked inputs in either mode, but:
+1. **Canonical-input handling differs between functions and between execution modes** (see [canonical inputs](#canonical-inputs)). No function returns an incorrect result for unchecked inputs in either mode, but:
    - In constrained execution, `+` and `-` do not check their inputs, while every other binary operation does. They never return an incorrect result, but `a + b` may succeed where `a == b` or `a * b` fails, and may also fail for non-canonical inputs whose sum is in range. The README documents this.
    - In unconstrained execution, `+` and `__add` do not check their inputs, while `-` and the other `__` functions do. So `[0, 1, 0] - [2^120, 0, 0]` succeeds in a circuit but fails in unconstrained code.

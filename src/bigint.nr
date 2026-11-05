@@ -175,18 +175,6 @@ pub trait BigInt: Add + Sub + Mul + Div + Rem + Eq {
     /// No constraints are generated.
     unconstrained fn __pow(&self, exponent: &Self) -> Self;
 
-    /// Asserts that `self != other`.
-    ///
-    /// # Performance Note
-    /// This is cheaper than `assert(self != other)` because it avoids creating a boolean result.
-    ///
-    /// # Completeness
-    /// The values are compared via their encodings in the circuit `Field`, so this fails for
-    /// distinct values which are congruent modulo the circuit field modulus `p`. For values
-    /// with `BITS < 254` this cannot happen; otherwise there's a negligible (~1/p) probability
-    /// for random inputs.
-    fn assert_is_not_equal(&self, other: &Self);
-
     /// Returns `true` if `self == 0`.
     fn is_zero(&self) -> bool;
 
@@ -381,15 +369,6 @@ pub comptime fn derive_bigint(strukt: TypeDefinition, BITS: u32) -> Quoted {
                 self.validate_in_range();
                 exponent.validate_in_range();
                 Self {limbs: $crate::internal::__pow::<$N, $BITS>(&self.get_limbs(), &exponent.get_limbs())}
-            }
-
-            fn assert_is_not_equal(&self, other: &Self) {
-                let self_limbs = self.get_limbs();
-                let other_limbs = other.get_limbs();
-                $crate::internal::assert_is_not_equal::<$N, $BITS>(
-                    &self_limbs,
-                    &other_limbs,
-                );
             }
 
             fn validate_in_range(&self) {
@@ -693,4 +672,20 @@ pub fn evaluate_quadratic_expression<T: BigInt, let LHS_N: u32, let RHS_N: u32, 
 pub fn to_field<T: BigInt>(bn: T) -> Field {
     let limbs = bn.get_limbs();
     limbs_to_field::<<T as BigInt>::N, <T as BigInt>::BITS>(&limbs)
+}
+
+/// Asserts that `a != b`.
+///
+/// Range-checks both values, and succeeds exactly when `assert(a != b)` does: for every width,
+/// distinct values always pass.
+///
+/// # Performance Note
+/// This is cheaper than `assert(a != b)` because it avoids creating a boolean result.
+pub fn assert_is_not_equal<T: BigInt>(a: T, b: T) {
+    let a_limbs = a.get_limbs();
+    let b_limbs = b.get_limbs();
+    crate::fns::constrained_ops::assert_is_not_equal::<<T as BigInt>::N, <T as BigInt>::BITS>(
+        &a_limbs,
+        &b_limbs,
+    );
 }
