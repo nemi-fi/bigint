@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793856473510,
+  "lastUpdate": 1793857234543,
   "repoUrl": "https://github.com/noir-lang/bigint",
   "entries": {
     "ACIR Opcodes": [
@@ -7502,6 +7502,345 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/noir-lang/bigint/commit/1f83ac4e07047b5209504d164b93983eaa976376"
         },
         "date": 1793856466992,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "add_U2048_Bench.json/main",
+            "value": 108,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "add_U256_Bench.json/main",
+            "value": 18,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "add_U512_Bench.json/main",
+            "value": 30,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "assert_is_not_equal_U2048_Bench.json/main",
+            "value": 38,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "assert_is_not_equal_U256_Bench.json/main",
+            "value": 8,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "assert_is_not_equal_U512_Bench.json/main",
+            "value": 12,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "cmp_U2048_Bench.json/main",
+            "value": 187,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "cmp_U256_Bench.json/main",
+            "value": 37,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "cmp_U512_Bench.json/main",
+            "value": 57,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "derive_from_seed_13_elements_U2048_Bench.json/main",
+            "value": 323,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "derive_from_seed_13_elements_U256_Bench.json/main",
+            "value": 77,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "derive_from_seed_13_elements_U512_Bench.json/main",
+            "value": 112,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "div_U2048_Bench.json/main",
+            "value": 217,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "div_U256_Bench.json/main",
+            "value": 37,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "div_U512_Bench.json/main",
+            "value": 61,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "div_rem_U2048_Bench.json/main",
+            "value": 235,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "div_rem_U256_Bench.json/main",
+            "value": 40,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "div_rem_U512_Bench.json/main",
+            "value": 66,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "eq_U2048_Bench.json/main",
+            "value": 125,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "eq_U256_Bench.json/main",
+            "value": 20,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "eq_U512_Bench.json/main",
+            "value": 34,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_1_element_U2048_Bench.json/main",
+            "value": 345,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_1_element_U256_Bench.json/main",
+            "value": 60,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_1_element_U512_Bench.json/main",
+            "value": 98,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_3_elements_U2048_Bench.json/main",
+            "value": 493,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_3_elements_U256_Bench.json/main",
+            "value": 88,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_3_elements_U512_Bench.json/main",
+            "value": 142,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_be_bytes_U2048_Bench.json/main",
+            "value": 321,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_be_bytes_U256_Bench.json/main",
+            "value": 41,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_be_bytes_U512_Bench.json/main",
+            "value": 79,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_field_U2048_Bench.json/main",
+            "value": 94,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_field_U256_Bench.json/main",
+            "value": 19,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_field_U512_Bench.json/main",
+            "value": 29,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_le_bytes_U2048_Bench.json/main",
+            "value": 321,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_le_bytes_U256_Bench.json/main",
+            "value": 41,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_le_bytes_U512_Bench.json/main",
+            "value": 79,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "is_zero_U2048_Bench.json/main",
+            "value": 23,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "is_zero_U256_Bench.json/main",
+            "value": 8,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "is_zero_U512_Bench.json/main",
+            "value": 10,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "mul_U2048_Bench.json/main",
+            "value": 143,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "mul_U256_Bench.json/main",
+            "value": 23,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "mul_U512_Bench.json/main",
+            "value": 39,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "pow_U2048_Bench.json/main",
+            "value": 73,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "pow_U256_Bench.json/main",
+            "value": 13,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "pow_U512_Bench.json/main",
+            "value": 21,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "rem_U2048_Bench.json/main",
+            "value": 217,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "rem_U256_Bench.json/main",
+            "value": 37,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "rem_U512_Bench.json/main",
+            "value": 61,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "sub_U2048_Bench.json/main",
+            "value": 108,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "sub_U256_Bench.json/main",
+            "value": 18,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "sub_U512_Bench.json/main",
+            "value": 30,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_be_bytes_U2048_Bench.json/main",
+            "value": 566,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_be_bytes_U256_Bench.json/main",
+            "value": 73,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_be_bytes_U512_Bench.json/main",
+            "value": 143,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_field_U2048_Bench.json/main",
+            "value": 75,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_field_U256_Bench.json/main",
+            "value": 15,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_field_U512_Bench.json/main",
+            "value": 23,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_le_bytes_U2048_Bench.json/main",
+            "value": 566,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_le_bytes_U256_Bench.json/main",
+            "value": 73,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_le_bytes_U512_Bench.json/main",
+            "value": 143,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "validate_in_range_U2048_Bench.json/main",
+            "value": 18,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "validate_in_range_U256_Bench.json/main",
+            "value": 3,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "validate_in_range_U512_Bench.json/main",
+            "value": 5,
+            "unit": "acir_opcodes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "15848336+TomAFrench@users.noreply.github.com",
+            "name": "Tom French",
+            "username": "TomAFrench"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "198595e3855deb9373c9fecf79b7cff9295f943d",
+          "message": "fix: support multiplication of types with more than 65 limbs (#18)\n\n* feat!: make `+` and `-` checked\n\n`add` and `sub` previously wrapped, conditionally subtracting or adding\nthe modulus. They now fail if the result overflows `2^BITS` or is\nnegative:\n\n- `add` computes the sum limb-wise with prover-provided carry flags and\n  range-checks every limb. As the carries telescope, the limbs encode\n  `lhs + rhs` exactly, so a sum `>= 2^BITS` fails the range check on the\n  top limb.\n- `sub` computes the difference with borrow flags via\n  `assert_sub_no_overflow`, where an underflow makes the top limb\n  negative, failing its range check.\n\nNeither needs the modulus. The unconstrained `__add` and `__sub` also\nfail on overflow and underflow, rather than wrapping.\n\nResult limbs are now range-checked once, as `Field` elements before\nthe cast to `u128`, rather than to 128 bits and then again to 120 bits.\nThis also applies to `cmp` and `validate_gt` via `assert_sub_no_overflow`.\n\nBREAKING CHANGE: `+`, `-`, `__add` and `__sub` fail on overflow and\nunderflow instead of wrapping.\n\n* feat!: make `*` and `evaluate_quadratic_expression` checked\n\n`evaluate_quadratic_expression` previously constrained an expression to\nbe zero modulo `2^BITS`, using a prover-provided quotient and adding\n`2 * MOD` to negated terms to keep their limbs non-negative. It now\nconstrains the expression to be zero over the integers:\n\n- Negated terms are subtracted limb-wise, so the expression limbs are\n  signed. The existing borrow-flag encoding already allows signed\n  running sums, so `validate_expression_is_zero` constrains the limbs to\n  encode zero exactly. The quotient witness and its range checks, and\n  `double_modulus`, are removed.\n- As every term is range-checked to `BITS` bits, a relation such as\n  `x * y - z = 0` constrains `z` to be exactly `x * y`.\n\n`mul` and `sqr` are constrained via `validate_mul_add_expression`\n(previously `validate_udiv_mod_expression`, used by `udiv_mod`), which\nchecks `lhs * rhs + addend == result` over the integers. The\nunconstrained `__mul`, `__sqr` and `__pow` fail on overflow; `__pow` now\nprocesses the exponent MSB-first, so intermediate values only overflow\nif the result does.\n\n`compute_quadratic_expression` returns the value of the expression,\nfailing if it is negative or overflows, instead of a quotient and\nremainder.\n\nWith no modulus left in any computation, `get_modulus`,\n`get_double_modulus`, `__reduce`, `__shr` and `validate_quotient_in_range`\nare removed.\n\nBREAKING CHANGE: `*`, `sqr`, `__mul`, `__sqr`, `__pow` and\n`evaluate_quadratic_expression` fail on overflow instead of wrapping.\n`compute_quadratic_expression` returns a single value instead of\n`(quotient, remainder)`. `internal::get_modulus` is removed.\n\n* chore: document intermediate values in quadratic expressions\n\nOnly the terms of `evaluate_quadratic_expression` are range-checked, so\nintermediate values such as products may exceed `2^BITS` or be negative\nas long as the relation holds. This allows relations which cannot be\ncomputed step by step with the checked operators, e.g. `a * b == c * d`\nfor products which exceed `2^BITS`.\n\nDocument this, and the cost compared to the operators, and add tests\nfor an expression with an overflowing intermediate product.\n\n* fix: support multiplication of types with more than 65 limbs\n\nThe zero check in quadratic expressions encodes borrows with 126-bit\ncarries, so every product limb must be below 2^246. A single product of\ntypes with more than 65 limbs exceeds this, so `U8192` (69 limbs) could\nnot multiply or divide at all: `*`, `/`, `%`, `div_rem` and\n`evaluate_quadratic_expression` failed with \"product limbs may exceed\n2^246 at limb 68\".\n\nUse 127-bit carries (a 2^247 bound) for types with more than 65 limbs,\nwhich suffices for up to 129 limbs, and make `derive_bigint` reject wider\ntypes. All values remain far below the circuit field modulus, so the\nsoundness argument is unchanged. Types with up to 65 limbs keep 126-bit\ncarries, and their circuits are unchanged.\n\n`assert_product_limbs_fit_in_246_bits` is renamed to\n`assert_product_limbs_fit`, and the unused `TWO_POW_126` and\n`TWO_POW_246` constants are removed.\n\n* docs: update SPEC.md for checked + and -\n\n* docs: distinguish never-incorrect from correct-for-any-limbs in SPEC.md\n\nConstrained + and - never return an incorrect result for non-canonical\ninputs, but can fail even when the result is in range, e.g.\n[2^120, 0, 0] - [0, 1, 0].\n\n* docs: update SPEC.md for checked * and expressions over the integers\n\n* docs: update SPEC.md for arithmetic on types with more than 65 limbs\n\n* chore: document intermediate values in quadratic expressions (#11)\n\nOnly the terms of `evaluate_quadratic_expression` are range-checked, so\nintermediate values such as products may exceed `2^BITS` or be negative\nas long as the relation holds. This allows relations which cannot be\ncomputed step by step with the checked operators, e.g. `a * b == c * d`\nfor products which exceed `2^BITS`.\n\nDocument this, and the cost compared to the operators, and add tests\nfor an expression with an overflowing intermediate product.\n\n* docs: fix a missing conjunction in SPEC.md\n\nClaude-Session: https://claude.ai/code/session_01EhqKvDA1t4G18DeHLTw3X4\n\n* docs: fix a missing conjunction in SPEC.md\n\nClaude-Session: https://claude.ai/code/session_01EhqKvDA1t4G18DeHLTw3X4\n\n* docs: fix a missing conjunction in SPEC.md\n\nClaude-Session: https://claude.ai/code/session_01EhqKvDA1t4G18DeHLTw3X4\n\n* fix: report overflow in constrained `+` and `-` with a descriptive message (#22)\n\n* fix: report overflow in constrained `+` and `-` with a descriptive message\n\nConstrained `+` and `-` reported overflow and underflow only as a failed range check (`call to assert_max_bit_size`), while `*`, `/` and the unconstrained operations fail with e.g. `attempt to multiply with overflow`. Check for overflow in the witness hints they already call, failing with `attempt to add with overflow` / `attempt to subtract with overflow`. This adds no constraints. The constrained part of `add` is moved into `assert_add_no_overflow`, mirroring `assert_sub_no_overflow`, so that tests can check that the constraints alone reject overflow for any carry or borrow flags.\n\n* docs: update SPEC.md for the overflow messages of + and -\n\n* docs: fix a missing conjunction in SPEC.md\n\nClaude-Session: https://claude.ai/code/session_01EhqKvDA1t4G18DeHLTw3X4\n\n* fix: use div_rem and % in the U8192 tests\n\nClaude-Session: https://claude.ai/code/session_01EhqKvDA1t4G18DeHLTw3X4\n\n* chore: refer to div_rem in a test comment\n\nClaude-Session: https://claude.ai/code/session_01EhqKvDA1t4G18DeHLTw3X4\n\n* chore: fix a stale comment on the flag helpers\n\nSplit out of #20.\n\nClaude-Session: https://claude.ai/code/session_01EhqKvDA1t4G18DeHLTw3X4\n\n* chore: fix stale documentation for checked expressions\n\nUpdates the doc comments and README for expressions which hold over the\nintegers and for compute_quadratic_expression returning the value of the\nexpression, documents the cost of computing a witness in several\nunconstrained calls, and removes an empty section header.\n\nSplit out of #20.\n\nClaude-Session: https://claude.ai/code/session_01EhqKvDA1t4G18DeHLTw3X4\n\n* refactor: select carry constants from the limb count at compile time\n\nReplaces the carry_bits argument, from which the carry constants were\ncomputed with pow_32, with a LIMBS numeric generic. The carry constants\n(2^126 / 2^127 and 2^246 / 2^247) and the range check are selected by\nuses_wide_carries::<LIMBS>(), a comparison of constants, so no\nexponentiation can end up in the circuit even if it is not constant-folded.\n\nClaude-Session: https://claude.ai/code/session_01EhqKvDA1t4G18DeHLTw3X4",
+          "timestamp": "2026-11-05T13:40:12+08:00",
+          "tree_id": "c07da309d17f84b6587943541e24564f0c89b99a",
+          "url": "https://github.com/noir-lang/bigint/commit/198595e3855deb9373c9fecf79b7cff9295f943d"
+        },
+        "date": 1793857233391,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
