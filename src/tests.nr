@@ -5,7 +5,7 @@ use crate::constants::{GRUMPKIN_MODULUS, TWO_POW_120, TWO_POW_240};
 use crate::fns::constrained_ops::{
     assert_add_no_overflow, assert_sub_no_overflow, from_field, validate_gt,
 };
-use crate::fns::expressions::{assert_product_limbs_fit_in_246_bits, validate_mul_add_expression};
+use crate::fns::expressions::{assert_product_limbs_fit, validate_mul_add_expression};
 use crate::fns::unconstrained_helpers::__helper_add;
 
 use crate::types::U1024::U1024;
@@ -177,7 +177,7 @@ fn test_validate_gt_regression_U256() {
 }
 
 // Regression tests for evaluate_quadratic_expression overflow detection.
-// When LHS_N, RHS_N, or NUM_PRODUCTS are too large, `assert_product_limbs_fit_in_246_bits`
+// When LHS_N, RHS_N, or NUM_PRODUCTS are too large, `assert_product_limbs_fit`
 // rejects the expression before any witness values are inspected. Zero inputs are
 // therefore sufficient to exercise the check.
 #[test(should_fail_with = "product limbs may exceed 2^246")]
@@ -205,15 +205,15 @@ fn test_evaluate_quadratic_expression_overflow_num_products_U256_2() {
 
 // The (N-1)th limb bound only dominates when `TOP_LIMB_BITS == 120`, i.e. when
 // `BITS = N * 120`. None of the shipped `BigInt` types hit that case, so we
-// exercise the check directly via `assert_product_limbs_fit_in_246_bits` with a
+// exercise the check directly via `assert_product_limbs_fit` with a
 // synthetic `<N, BITS>` pair.
 //
 // With N=3, BITS=360, LHS_N=RHS_N=1, NUM_PRODUCTS=22:
 //   - (N-2)th bound: 22 * 2 * (2^120-1)^2 ~ 44 * 2^240 < 2^246  (passes)
 //   - (N-1)th bound: 22 * 3 * (2^120-1)^2 ~ 66 * 2^240 > 2^246  (fails first)
 #[test(should_fail_with = "product limbs may exceed 2^246 at limb 2")]
-fn test_assert_product_limbs_fit_in_246_bits_n_minus_1() {
-    assert_product_limbs_fit_in_246_bits::<3, 360, 1, 1, 22>();
+fn test_assert_product_limbs_fit_n_minus_1() {
+    assert_product_limbs_fit::<3, 360, 1, 1, 22>();
 }
 
 // from_field must reject values >= 2^BITS, even when they are smaller than the Grumpkin modulus.
@@ -1200,6 +1200,24 @@ fn test_mul_u1024() {
 #[test]
 fn test_mul_u4096() {
     test_mul::<35, crate::types::U4096::U4096>();
+}
+
+// `U8192` has 69 limbs, so its products need 127-bit carries (see `uses_wide_carries`)
+#[test]
+fn test_mul_u8192() {
+    test_mul::<69, crate::types::U8192::U8192>();
+}
+
+#[test]
+fn test_mul_div_u8192_max() {
+    // (2^4096 - 1)^2 = 2^8192 - 2^4097 + 1 fits in a U8192
+    let a: U8192 = U8192::from_limbs([TWO_POW_120 - 1; 34].concat([0xffff]).concat([0; 34]));
+    let square: U8192 = a * a;
+    assert(square.get_limb(0) == 1);
+    let (q, r): (U8192, U8192) = square.div_rem(&a);
+    assert(q == a);
+    assert(r == U8192::zero());
+    assert(square % a == U8192::zero());
 }
 
 #[test]
