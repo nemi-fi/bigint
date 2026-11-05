@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793858802872,
+  "lastUpdate": 1793860979527,
   "repoUrl": "https://github.com/noir-lang/bigint",
   "entries": {
     "ACIR Opcodes": [
@@ -8180,6 +8180,345 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/noir-lang/bigint/commit/35055082defba81e3f92ea667358d313aa600850"
         },
         "date": 1793858795008,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "add_U2048_Bench.json/main",
+            "value": 108,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "add_U256_Bench.json/main",
+            "value": 18,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "add_U512_Bench.json/main",
+            "value": 30,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "assert_is_not_equal_U2048_Bench.json/main",
+            "value": 38,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "assert_is_not_equal_U256_Bench.json/main",
+            "value": 8,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "assert_is_not_equal_U512_Bench.json/main",
+            "value": 12,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "cmp_U2048_Bench.json/main",
+            "value": 187,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "cmp_U256_Bench.json/main",
+            "value": 37,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "cmp_U512_Bench.json/main",
+            "value": 57,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "derive_from_seed_13_elements_U2048_Bench.json/main",
+            "value": 323,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "derive_from_seed_13_elements_U256_Bench.json/main",
+            "value": 77,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "derive_from_seed_13_elements_U512_Bench.json/main",
+            "value": 112,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "div_U2048_Bench.json/main",
+            "value": 217,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "div_U256_Bench.json/main",
+            "value": 37,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "div_U512_Bench.json/main",
+            "value": 61,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "div_rem_U2048_Bench.json/main",
+            "value": 235,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "div_rem_U256_Bench.json/main",
+            "value": 40,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "div_rem_U512_Bench.json/main",
+            "value": 66,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "eq_U2048_Bench.json/main",
+            "value": 125,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "eq_U256_Bench.json/main",
+            "value": 20,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "eq_U512_Bench.json/main",
+            "value": 34,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_1_element_U2048_Bench.json/main",
+            "value": 345,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_1_element_U256_Bench.json/main",
+            "value": 60,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_1_element_U512_Bench.json/main",
+            "value": 98,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_3_elements_U2048_Bench.json/main",
+            "value": 493,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_3_elements_U256_Bench.json/main",
+            "value": 88,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_3_elements_U512_Bench.json/main",
+            "value": 142,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_be_bytes_U2048_Bench.json/main",
+            "value": 321,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_be_bytes_U256_Bench.json/main",
+            "value": 41,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_be_bytes_U512_Bench.json/main",
+            "value": 79,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_field_U2048_Bench.json/main",
+            "value": 94,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_field_U256_Bench.json/main",
+            "value": 19,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_field_U512_Bench.json/main",
+            "value": 29,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_le_bytes_U2048_Bench.json/main",
+            "value": 321,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_le_bytes_U256_Bench.json/main",
+            "value": 41,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "from_le_bytes_U512_Bench.json/main",
+            "value": 79,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "is_zero_U2048_Bench.json/main",
+            "value": 23,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "is_zero_U256_Bench.json/main",
+            "value": 8,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "is_zero_U512_Bench.json/main",
+            "value": 10,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "mul_U2048_Bench.json/main",
+            "value": 143,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "mul_U256_Bench.json/main",
+            "value": 23,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "mul_U512_Bench.json/main",
+            "value": 39,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "pow_U2048_Bench.json/main",
+            "value": 73,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "pow_U256_Bench.json/main",
+            "value": 13,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "pow_U512_Bench.json/main",
+            "value": 21,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "rem_U2048_Bench.json/main",
+            "value": 217,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "rem_U256_Bench.json/main",
+            "value": 37,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "rem_U512_Bench.json/main",
+            "value": 61,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "sub_U2048_Bench.json/main",
+            "value": 108,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "sub_U256_Bench.json/main",
+            "value": 18,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "sub_U512_Bench.json/main",
+            "value": 30,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_be_bytes_U2048_Bench.json/main",
+            "value": 566,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_be_bytes_U256_Bench.json/main",
+            "value": 73,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_be_bytes_U512_Bench.json/main",
+            "value": 143,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_field_U2048_Bench.json/main",
+            "value": 75,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_field_U256_Bench.json/main",
+            "value": 15,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_field_U512_Bench.json/main",
+            "value": 23,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_le_bytes_U2048_Bench.json/main",
+            "value": 566,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_le_bytes_U256_Bench.json/main",
+            "value": 73,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "to_le_bytes_U512_Bench.json/main",
+            "value": 143,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "validate_in_range_U2048_Bench.json/main",
+            "value": 18,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "validate_in_range_U256_Bench.json/main",
+            "value": 3,
+            "unit": "acir_opcodes"
+          },
+          {
+            "name": "validate_in_range_U512_Bench.json/main",
+            "value": 5,
+            "unit": "acir_opcodes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "15848336+TomAFrench@users.noreply.github.com",
+            "name": "Tom French",
+            "username": "TomAFrench"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "58a77ebaf1b4c72b02ae2d51137293851b7ca795",
+          "message": "fix!: make `assert_is_not_equal` exact and a free function (#31)\n\n* fix!: make `assert_is_not_equal` distinguish all distinct values\n\n`assert_is_not_equal` compared values via their encodings in the circuit\n`Field`, so for every shipped type (`BITS >= 254`) it failed for distinct values\nwhich differ by a multiple of `p`, e.g. `0` and `p` as `U256`s.\n\nIt now range-checks both inputs, packs pairs of limbs into `Field`s (exact, as\neach pair is below `2^240`), and asserts `sum_j (L_j - R_j) * w_j == 1` for a\nwitness `w` supplied by an unconstrained hint. It succeeds exactly when\n`assert(a != b)` does.\n\nSPEC.md gains a Requirements section, whose first entry is that equality tests\ndistinguish distinct canonical values. Item 1 of the consistency review is\nremoved.\n\nBREAKING CHANGE: `assert_is_not_equal` range-checks its inputs, so it fails for\nnon-canonical inputs, as `==` and `!=` do.\n\nClaude-Session: https://claude.ai/code/session_01EhqKvDA1t4G18DeHLTw3X4\n\n* fix!: make `assert_is_not_equal` a free function\n\n`assert_is_not_equal` is removed from the `BigInt` trait, and is exported from\nthe crate root as `assert_is_not_equal(a, b)`, next to `to_field`. The\n`internal::assert_is_not_equal` re-export, which only the `derive_bigint` impl\nused, is removed.\n\nBREAKING CHANGE: `a.assert_is_not_equal(&b)` no longer compiles. Use\n`assert_is_not_equal(a, b)` instead.\n\nClaude-Session: https://claude.ai/code/session_01EhqKvDA1t4G18DeHLTw3X4",
+          "timestamp": "2026-11-05T14:42:37+08:00",
+          "tree_id": "9e89c14fcf27bc672dd15360b3706e77bf2a8ed7",
+          "url": "https://github.com/noir-lang/bigint/commit/58a77ebaf1b4c72b02ae2d51137293851b7ca795"
+        },
+        "date": 1793860978327,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
