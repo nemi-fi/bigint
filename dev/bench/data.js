@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793844086697,
+  "lastUpdate": 1793844091240,
   "repoUrl": "https://github.com/noir-lang/bigint",
   "entries": {
     "ACIR Opcodes": [
@@ -7758,6 +7758,345 @@ window.BENCHMARK_DATA = {
           {
             "name": "validate_canonical_U512_Bench",
             "value": 174,
+            "unit": "opcodes"
+          },
+          {
+            "name": "validate_in_range_U2048_Bench",
+            "value": 220,
+            "unit": "opcodes"
+          },
+          {
+            "name": "validate_in_range_U256_Bench",
+            "value": 70,
+            "unit": "opcodes"
+          },
+          {
+            "name": "validate_in_range_U512_Bench",
+            "value": 90,
+            "unit": "opcodes"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "15848336+TomAFrench@users.noreply.github.com",
+            "name": "Tom French",
+            "username": "TomAFrench"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "912451215ccd3dde9817230a3f2417c8d920f0b1",
+          "message": "feat!: use exact-width types with a unique representation per value (#2)\n\n* perf: derive `derive_from_seed` values directly from hash bits\n\nAs the modulus is a power of two, a uniformly random value is just the\nlow `MOD_BITS - 1` bits of a random bitstring. Build each limb directly\nfrom 120 bits of a Poseidon2 output instead of sampling `2 * MOD_BITS`\nbits and reducing them through a chain of constrained `mul`/`add` calls.\n\nHash outputs are split with the canonical `std::field::bn254::decompose`\nand range-checked bit splits instead of a full byte decomposition. Each\nlimb uses the same bits [0, 240) of the hash output as before.\n\nCircuit size above the range-table floor of the `derive_from_seed`\nbenchmark drops by 78% for U256 and 87% for U2048.\n\nThe values produced for a given seed change.\n\n* feat!: use exact-width types with a unique representation per value\n\nReplace the `MOD_BITS` parameter (where values were range-checked to\n`MOD_BITS` bits and the modulus was `2^(MOD_BITS - 1)`) with `BITS`, the\nexact width of the type. Values are range-checked to `BITS` bits, so\nevery range-checked value lies in `[0, 2^BITS)` and has exactly one limb\nrepresentation. This removes the concept of non-canonical values:\n\n- `validate_canonical` is removed, as `validate_in_range` now implies it.\n  `udiv_mod`, `/`, `umod`, `from_field` and the byte conversions no\n  longer need it.\n- `eq` is limb-wise equality instead of a constrained subtraction\n  followed by a zero check.\n- `is_zero` and `assert_is_not_zero` only need to check for the all-zero\n  limb vector, and `assert_is_not_equal` no longer needs to account for\n  values differing by the modulus.\n\nCircuit size above the range-table floor drops by 63-73% for `eq`,\n24-30% for `udiv_mod` and `/`, 6-21% for `add`/`sub`/`neg`, and 34-39%\nfor U2048 `from_field`/`to_field`. Byte decoding for U2048 grows by 10\nACIR opcodes (~1%).\n\nThe quotient bound in `evaluate_quadratic_expression` and the static\nproduct-limb bound are unchanged in absolute terms, as the modulus\nitself is unchanged.\n\nBREAKING CHANGE: `derive_bigint` takes the bit width (e.g.\n`#[derive_bigint(3, 256)]` for `U256`), and `BigInt::MOD_BITS` and\n`modulus_bits()` are renamed to `BITS` and `bits()`. Byte conversions\nuse `(BITS + 7) / 8` bytes (32 for `U256`). `modulus()`,\n`validate_canonical`, `unsafe_is_zero_integer`,\n`unsafe_assert_is_not_zero_integer`, `div_unsafe`, `udiv_mod_unsafe`,\n`umod_unsafe` and the `*_bytes_unsafe` conversions are removed.\n\n* fix: range-check the inputs of `eq` and `cmp`\n\n`eq` and the `Equal` case of `cmp` compare limbs directly, which is only\nsound if both inputs are normalised. Values which bypass the `BigInt`\nconstructors, such as circuit inputs, values returned from unconstrained\nfunctions or `from_limbs_unsafe`, may encode the same integer with\ndifferent limbs, e.g. `[2^120, 0, 0]` and `[0, 1, 0]`. Previously\n`assert(a != b)` accepted these, and `cmp` reported one as greater than\nthe other.\n\nRange-check both inputs first. Range checks are deduplicated per value,\nso this adds no constraints when the inputs are already range-checked,\ne.g. the outputs of other operations.\n\n* feat!: infer the number of limbs in `derive_bigint`\n\n`derive_bigint` takes only the bit width, e.g. `#[derive_bigint(256)]`.\nThe number of limbs is read from the struct's `limbs: [u128; N]` field\nand checked to be `ceil(BITS / 120)`, so the two cannot disagree.\n\nWidths whose top limb would hold 0 or more than 118 bits, i.e. where\n`BITS % 120` is 0 or 119, are rejected with an explicit error, as before.\n\nBREAKING CHANGE: `derive_bigint(N, BITS)` is now `derive_bigint(BITS)`.",
+          "timestamp": "2026-11-05T10:01:01+08:00",
+          "tree_id": "b166e3a1044495754b7c62f1e84b4095d1faa1d6",
+          "url": "https://github.com/noir-lang/bigint/commit/912451215ccd3dde9817230a3f2417c8d920f0b1"
+        },
+        "date": 1793844091226,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "add_U2048_Bench",
+            "value": 310,
+            "unit": "opcodes"
+          },
+          {
+            "name": "add_U256_Bench",
+            "value": 214,
+            "unit": "opcodes"
+          },
+          {
+            "name": "add_U512_Bench",
+            "value": 246,
+            "unit": "opcodes"
+          },
+          {
+            "name": "assert_is_not_equal_U2048_Bench",
+            "value": 138,
+            "unit": "opcodes"
+          },
+          {
+            "name": "assert_is_not_equal_U256_Bench",
+            "value": 96,
+            "unit": "opcodes"
+          },
+          {
+            "name": "assert_is_not_equal_U512_Bench",
+            "value": 122,
+            "unit": "opcodes"
+          },
+          {
+            "name": "assert_is_not_zero_U2048_Bench",
+            "value": 153,
+            "unit": "opcodes"
+          },
+          {
+            "name": "assert_is_not_zero_U256_Bench",
+            "value": 63,
+            "unit": "opcodes"
+          },
+          {
+            "name": "assert_is_not_zero_U512_Bench",
+            "value": 75,
+            "unit": "opcodes"
+          },
+          {
+            "name": "cmp_U2048_Bench",
+            "value": 874,
+            "unit": "opcodes"
+          },
+          {
+            "name": "cmp_U256_Bench",
+            "value": 288,
+            "unit": "opcodes"
+          },
+          {
+            "name": "cmp_U512_Bench",
+            "value": 452,
+            "unit": "opcodes"
+          },
+          {
+            "name": "derive_from_seed_13_elements_U2048_Bench",
+            "value": 536,
+            "unit": "opcodes"
+          },
+          {
+            "name": "derive_from_seed_13_elements_U256_Bench",
+            "value": 378,
+            "unit": "opcodes"
+          },
+          {
+            "name": "derive_from_seed_13_elements_U512_Bench",
+            "value": 408,
+            "unit": "opcodes"
+          },
+          {
+            "name": "div_U2048_Bench",
+            "value": 1801,
+            "unit": "opcodes"
+          },
+          {
+            "name": "div_U256_Bench",
+            "value": 1737,
+            "unit": "opcodes"
+          },
+          {
+            "name": "div_U512_Bench",
+            "value": 1948,
+            "unit": "opcodes"
+          },
+          {
+            "name": "eq_U2048_Bench",
+            "value": 419,
+            "unit": "opcodes"
+          },
+          {
+            "name": "eq_U256_Bench",
+            "value": 119,
+            "unit": "opcodes"
+          },
+          {
+            "name": "eq_U512_Bench",
+            "value": 161,
+            "unit": "opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_1_element_U2048_Bench",
+            "value": 2793,
+            "unit": "opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_1_element_U256_Bench",
+            "value": 1469,
+            "unit": "opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_1_element_U512_Bench",
+            "value": 1896,
+            "unit": "opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_3_elements_U2048_Bench",
+            "value": 3777,
+            "unit": "opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_3_elements_U256_Bench",
+            "value": 2115,
+            "unit": "opcodes"
+          },
+          {
+            "name": "evaluate_quadratic_expression_3_elements_U512_Bench",
+            "value": 2545,
+            "unit": "opcodes"
+          },
+          {
+            "name": "from_be_bytes_U2048_Bench",
+            "value": 441,
+            "unit": "opcodes"
+          },
+          {
+            "name": "from_be_bytes_U256_Bench",
+            "value": 293,
+            "unit": "opcodes"
+          },
+          {
+            "name": "from_be_bytes_U512_Bench",
+            "value": 529,
+            "unit": "opcodes"
+          },
+          {
+            "name": "from_field_U2048_Bench",
+            "value": 101,
+            "unit": "opcodes"
+          },
+          {
+            "name": "from_field_U256_Bench",
+            "value": 70,
+            "unit": "opcodes"
+          },
+          {
+            "name": "from_field_U512_Bench",
+            "value": 75,
+            "unit": "opcodes"
+          },
+          {
+            "name": "from_le_bytes_U2048_Bench",
+            "value": 482,
+            "unit": "opcodes"
+          },
+          {
+            "name": "from_le_bytes_U256_Bench",
+            "value": 360,
+            "unit": "opcodes"
+          },
+          {
+            "name": "from_le_bytes_U512_Bench",
+            "value": 596,
+            "unit": "opcodes"
+          },
+          {
+            "name": "is_zero_U2048_Bench",
+            "value": 148,
+            "unit": "opcodes"
+          },
+          {
+            "name": "is_zero_U256_Bench",
+            "value": 58,
+            "unit": "opcodes"
+          },
+          {
+            "name": "is_zero_U512_Bench",
+            "value": 70,
+            "unit": "opcodes"
+          },
+          {
+            "name": "mul_U2048_Bench",
+            "value": 463,
+            "unit": "opcodes"
+          },
+          {
+            "name": "mul_U256_Bench",
+            "value": 223,
+            "unit": "opcodes"
+          },
+          {
+            "name": "mul_U512_Bench",
+            "value": 384,
+            "unit": "opcodes"
+          },
+          {
+            "name": "pow_U2048_Bench",
+            "value": 883,
+            "unit": "opcodes"
+          },
+          {
+            "name": "pow_U256_Bench",
+            "value": 395,
+            "unit": "opcodes"
+          },
+          {
+            "name": "pow_U512_Bench",
+            "value": 696,
+            "unit": "opcodes"
+          },
+          {
+            "name": "sub_U2048_Bench",
+            "value": 464,
+            "unit": "opcodes"
+          },
+          {
+            "name": "sub_U256_Bench",
+            "value": 276,
+            "unit": "opcodes"
+          },
+          {
+            "name": "sub_U512_Bench",
+            "value": 368,
+            "unit": "opcodes"
+          },
+          {
+            "name": "to_be_bytes_U2048_Bench",
+            "value": 191,
+            "unit": "opcodes"
+          },
+          {
+            "name": "to_be_bytes_U256_Bench",
+            "value": 201,
+            "unit": "opcodes"
+          },
+          {
+            "name": "to_be_bytes_U512_Bench",
+            "value": 301,
+            "unit": "opcodes"
+          },
+          {
+            "name": "to_field_U2048_Bench",
+            "value": 653,
+            "unit": "opcodes"
+          },
+          {
+            "name": "to_field_U256_Bench",
+            "value": 146,
+            "unit": "opcodes"
+          },
+          {
+            "name": "to_field_U512_Bench",
+            "value": 213,
+            "unit": "opcodes"
+          },
+          {
+            "name": "to_le_bytes_U2048_Bench",
+            "value": 231,
+            "unit": "opcodes"
+          },
+          {
+            "name": "to_le_bytes_U256_Bench",
+            "value": 244,
+            "unit": "opcodes"
+          },
+          {
+            "name": "to_le_bytes_U512_Bench",
+            "value": 344,
+            "unit": "opcodes"
+          },
+          {
+            "name": "udiv_mod_U2048_Bench",
+            "value": 1820,
+            "unit": "opcodes"
+          },
+          {
+            "name": "udiv_mod_U256_Bench",
+            "value": 1756,
+            "unit": "opcodes"
+          },
+          {
+            "name": "udiv_mod_U512_Bench",
+            "value": 1967,
             "unit": "opcodes"
           },
           {
