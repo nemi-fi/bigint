@@ -19,7 +19,7 @@ Every pull request which changes behaviour must update this document in the same
 `#[derive_bigint(BITS)]` implements `BigInt` for a struct with a single field `limbs: [u128; N]`. It fails to compile unless:
 
 - `N = ceil(BITS / 120)`,
-- `N >= 2`, and
+- `2 <= N <= 129`, and
 - `TOP <= 118`, i.e. `BITS % 120` is neither `0` nor `119`.
 
 The library provides:
@@ -61,7 +61,7 @@ Every shipped type has `BITS >= 254`, so `2^BITS > p`.
 | `from_be_bytes(bytes)`, `from_le_bytes(bytes)` | the integer encoded by the `(BITS + 7) / 8` bytes | the encoded integer is `>= 2^BITS` |
 | `to_be_bytes(a)`, `to_le_bytes(a)` | the `(BITS + 7) / 8`-byte encoding of `value(a)` | a non-top limb of `a` is `>= 2^120`, or the top limb does not fit in its bytes |
 
-`to_be_bytes` does not range-check the top limb to `TOP` bits, only to the bytes it occupies. For shipped types `BITS % 8 == 0`, so the two coincide. See [consistency review](#consistency-review), item 5.
+`to_be_bytes` does not range-check the top limb to `TOP` bits, only to the bytes it occupies. For shipped types `BITS % 8 == 0`, so the two coincide. See [consistency review](#consistency-review), item 4.
 
 ## Comparisons
 
@@ -75,7 +75,7 @@ Every shipped type has `BITS >= 254`, so `2^BITS > p`.
 
 `is_zero` and `assert_is_not_zero` are correct for unchecked values, as a value whose limbs are all non-negative is zero only if every limb is zero.
 
-`assert_is_not_equal` compares values via their encodings in `Field`. It is sound (it always fails if `value(a) == value(b)`), but when `BITS >= 254` it also fails for distinct values whose difference is a multiple of `p`. See [consistency review](#consistency-review), item 2.
+`assert_is_not_equal` compares values via their encodings in `Field`. It is sound (it always fails if `value(a) == value(b)`), but when `BITS >= 254` it also fails for distinct values whose difference is a multiple of `p`. See [consistency review](#consistency-review), item 1.
 
 ## Arithmetic
 
@@ -85,17 +85,15 @@ All arithmetic is **checked**: an operation fails if its result is `>= 2^BITS` o
 | --- | --- | --- | --- |
 | `a + b` | `value(a) + value(b)` | the sum is `>= 2^BITS` | no |
 | `a - b` | `value(a) - value(b)` | `value(b) > value(a)` | no |
-| `a * b` | `value(a) * value(b)` | the product is `>= 2^BITS` (`attempt to multiply with overflow`), an input is not canonical, or `N > 65` (compile time) | yes |
+| `a * b` | `value(a) * value(b)` | the product is `>= 2^BITS` (`attempt to multiply with overflow`), or an input is not canonical | yes |
 | `a.sqr()` | `value(a)^2` | as `*` | yes |
-| `a.udiv_mod(b)` | `(floor(a / b), a mod b)` | `b == 0`, an input is not canonical, or `N > 65` (compile time) | yes |
+| `a.udiv_mod(b)` | `(floor(a / b), a mod b)` | `b == 0`, or an input is not canonical | yes |
 | `a / b` | `floor(a / b)` | as `udiv_mod` | yes |
 | `a.umod(b)` | `a mod b` | as `udiv_mod` | yes |
 
 Division by zero fails with `attempt to divide by zero`. The circuit itself also rejects it, as it requires `remainder < divisor`.
 
 For unchecked inputs, `+` and `-` never return an incorrect result: they return the exact sum or difference of `value(a)` and `value(b)`, or fail. They may fail for some non-canonical inputs even when the result is in range, e.g. `[2^120, 0, 0] - [0, 1, 0]`.
-
-The compile-time failure for `N > 65` comes from the product bound described under [quadratic expressions](#quadratic-expressions). It affects `U8192`. See [consistency review](#consistency-review), item 1.
 
 ## Unconstrained functions
 
@@ -146,7 +144,7 @@ over the integers. Because every term is range-checked, a relation such as `x * 
 
 Preconditions:
 
-- **Size bound (compile time).** The parameters `(N, BITS, LHS_N, RHS_N, NUM_PRODUCTS)` must keep the absolute value of every limb of the product below `2^246`. Expressions which may not satisfy this fail to compile with `product limbs may exceed 2^246 at limb k`. As a guide, keep `NUM_PRODUCTS * LHS_N * RHS_N` well below 64. For `N > 65` every expression is rejected, including `NUM_PRODUCTS = LHS_N = RHS_N = 1`.
+- **Size bound (compile time).** The parameters `(N, BITS, LHS_N, RHS_N, NUM_PRODUCTS)` must keep the absolute value of every limb of the product below `2^246` for `N <= 65`, or `2^247` for `N > 65`. Expressions which may not satisfy this fail to compile with `product limbs may exceed 2^246 at limb k` (or `2^247`). As a guide, keep `NUM_PRODUCTS * LHS_N * RHS_N` well below 64. A single product (`NUM_PRODUCTS = LHS_N = RHS_N = 1`) is accepted for every supported `N`.
 - **Completeness.** If the size bound holds, every term is canonical and `E = 0`, a proof can be generated.
 
 ```rust
@@ -201,21 +199,20 @@ Observed results for `U256`, with `a = [2^120, 0, 0]` (`2^120` with non-canonica
 | `a.__eq([0, 1, 0])` | — | `false`, although the values are equal |
 | `a.assert_is_not_equal([0, 1, 0])` | fails (the values are equal) | — |
 
-So in constrained execution no function returns a wrong result for unchecked inputs. In unconstrained execution, the same operator can return a wrong result where constrained execution fails. See [consistency review](#consistency-review), item 3.
+So in constrained execution no function returns a wrong result for unchecked inputs. In unconstrained execution, the same operator can return a wrong result where constrained execution fails. See [consistency review](#consistency-review), item 2.
 
 ## Consistency review
 
 Known inconsistencies on `main`, and the open pull requests which address them.
 
-1. **`U8192` cannot do arithmetic.** `*`, `sqr`, `/`, `umod`, `udiv_mod` and `evaluate_quadratic_expression` all fail to compile for types with `N > 65`, which includes the shipped `U8192`. This is far stricter than for every other shipped type. Addressed by #18.
-2. **`assert_is_not_equal` has a stricter precondition than `!=`.** For every shipped type (`BITS >= 254`) it fails for distinct values congruent modulo `p`, whereas `assert(a != b)` does not. An honest prover with such values cannot produce a proof. Not addressed.
-3. **Canonical-input handling differs between functions and between execution modes** (see [canonical inputs](#canonical-inputs)):
+1. **`assert_is_not_equal` has a stricter precondition than `!=`.** For every shipped type (`BITS >= 254`) it fails for distinct values congruent modulo `p`, whereas `assert(a != b)` does not. An honest prover with such values cannot produce a proof. Not addressed.
+2. **Canonical-input handling differs between functions and between execution modes** (see [canonical inputs](#canonical-inputs)):
    - In unconstrained execution, `-`, `*`, `sqr`, `/`, `udiv_mod`, `umod` and the `__` functions other than `__add` require canonical inputs but do not check them, and can return wrong or non-canonical results (e.g. `[2^120, 0, 0] / 1` returns `2^120 - 1`, `[2^127, 0, 0]^2` returns `2^254 mod p`, and `[0, 0, 2^17] - 0` returns `2^257`). In constrained execution the same operators either check or are correct for any limbs. `==` and the comparisons check in both modes. Not addressed.
    - In constrained execution, `+` and `-` do not check their inputs, while every other binary operation does. They never return an incorrect result, but `a + b` may succeed where `a == b` or `a * b` fails, and may also fail for non-canonical inputs whose sum is in range. #20 documents this.
    - `__eq` compares limbs, so it returns `false` for different encodings of the same value, where `==` fails. Not addressed.
-4. **Unconstrained `From<Field>` does not check the width.** For a custom type with `BITS <= 253`, the constrained conversion fails for `x >= 2^BITS`, but the unconstrained one returns non-canonical limbs. Addressed by #16.
-5. **`to_be_bytes` and `to_le_bytes` only range-check the top limb to a byte boundary.** For a custom type with `BITS % 8 != 0`, they can serialize a non-canonical value into bytes which `from_be_bytes` rejects. Addressed by #19.
-6. **Documentation drift.** These comments disagree with the code:
+3. **Unconstrained `From<Field>` does not check the width.** For a custom type with `BITS <= 253`, the constrained conversion fails for `x >= 2^BITS`, but the unconstrained one returns non-canonical limbs. Addressed by #16.
+4. **`to_be_bytes` and `to_le_bytes` only range-check the top limb to a byte boundary.** For a custom type with `BITS % 8 != 0`, they can serialize a non-canonical value into bytes which `from_be_bytes` rejects. Addressed by #19.
+5. **Documentation drift.** These comments disagree with the code:
    - The `BigInt` trait documentation says single-limb types "may produce incorrect results"; `derive_bigint` rejects them at compile time.
    - The doc comment of `evaluate_quadratic_expression` describes `product(lhs_terms[i])` and a relation `== 0 (mod 2^BITS)`. The code computes a sum, and the relation holds over the integers.
    - The 256-byte limit on `derive_from_seed` seeds is not documented on the trait.
