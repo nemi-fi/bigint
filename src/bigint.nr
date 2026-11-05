@@ -104,7 +104,8 @@ pub trait BigInt: Add + Sub + Mul + Div + Rem + Eq {
 
     /// Unconstrained equality check.
     ///
-    /// Returns `true` if `self == other` as integers (not modular equality).
+    /// Returns `true` if `self == other` as integers (not modular equality). Fails if either input
+    /// is not in range (see `validate_in_range`), as `==` does.
     ///
     /// # Safety
     /// No constraints are generated. Use `==` operator for constrained equality.
@@ -128,7 +129,7 @@ pub trait BigInt: Add + Sub + Mul + Div + Rem + Eq {
 
     /// Unconstrained subtraction: computes `self - other`.
     ///
-    /// Fails if `other > self`.
+    /// Fails if `other > self`, or if either input is not in range (see `validate_in_range`).
     ///
     /// # Safety
     /// No constraints are generated. Constrain the result using `evaluate_quadratic_expression`.
@@ -136,7 +137,8 @@ pub trait BigInt: Add + Sub + Mul + Div + Rem + Eq {
 
     /// Unconstrained multiplication: computes `self * other`.
     ///
-    /// Fails if the product overflows `2^BITS`.
+    /// Fails if the product overflows `2^BITS`, or if either input is not in range (see
+    /// `validate_in_range`).
     ///
     /// # Safety
     /// No constraints are generated. Constrain the result using `evaluate_quadratic_expression`.
@@ -144,8 +146,7 @@ pub trait BigInt: Add + Sub + Mul + Div + Rem + Eq {
 
     /// Unconstrained unsigned integer division: computes `floor(self / other)`.
     ///
-    /// # Requirements
-    /// - `other` must not be zero
+    /// Fails if `other` is zero, or if either input is not in range (see `validate_in_range`).
     ///
     /// # Safety
     /// No constraints are generated. Constrain the result using `evaluate_quadratic_expression`.
@@ -156,13 +157,16 @@ pub trait BigInt: Add + Sub + Mul + Div + Rem + Eq {
     /// Returns `(quotient, remainder)` where `self == quotient * divisor + remainder`
     /// and `0 <= remainder < divisor`.
     ///
+    /// Fails if `divisor` is zero, or if either input is not in range (see `validate_in_range`).
+    ///
     /// # Safety
     /// No constraints are generated. Use `div_rem()` for the constrained version.
     unconstrained fn __div_rem(&self, divisor: &Self) -> (Self, Self);
 
     /// Unconstrained exponentiation: computes `self^exponent`.
     ///
-    /// Fails if the result overflows `2^BITS`.
+    /// Fails if the result overflows `2^BITS`, or if either input is not in range (see
+    /// `validate_in_range`).
     ///
     /// # Performance Warning
     /// **EXPENSIVE**: Complexity is O(log2(exponent)) multiplications.
@@ -196,6 +200,8 @@ pub trait BigInt: Add + Sub + Mul + Div + Rem + Eq {
     /// `from_limbs`, `set_limb` and all operations already range-check their results. Call this on
     /// values which bypass them: values built with `from_limbs_unsafe` or `set_limb_unsafe`,
     /// circuit inputs, and values returned from unconstrained functions.
+    ///
+    /// In unconstrained execution, this fails with the message `BigInt is not in range`.
     ///
     /// # Performance Note
     /// Range constraints are deduplicated per value, so calling this multiple times on the same
@@ -334,6 +340,9 @@ pub comptime fn derive_bigint(strukt: TypeDefinition, BITS: u32) -> Quoted {
             }
 
             unconstrained fn __eq(&self, other: &Self) -> bool {
+                // Canonical values are equal exactly when their limbs are
+                self.validate_in_range();
+                other.validate_in_range();
                 $crate::internal::__eq(&self.get_limbs(), &other.get_limbs())
             }
 
@@ -346,23 +355,31 @@ pub comptime fn derive_bigint(strukt: TypeDefinition, BITS: u32) -> Quoted {
             }
 
             unconstrained fn __sub(&self, other: &Self) -> Self {
+                self.validate_in_range();
+                other.validate_in_range();
                 Self {limbs: $crate::internal::__sub::<$N, $BITS>(&self.get_limbs(), &other.get_limbs())}
             }
 
             unconstrained fn __mul(&self, other: &Self) -> Self {
+                self.validate_in_range();
+                other.validate_in_range();
                 Self {limbs: $crate::internal::__mul::<$N, $BITS>(&self.get_limbs(), &other.get_limbs())}
             }
 
             unconstrained fn __div(&self, divisor: &Self) -> Self {
-                Self { limbs: $crate::internal::__div_rem(&self.get_limbs(), &divisor.get_limbs()).0 }
+                self.__div_rem(divisor).0
             }
 
             unconstrained fn __div_rem(&self, divisor: &Self) -> (Self, Self) {
+                self.validate_in_range();
+                divisor.validate_in_range();
                 let (q, r) = $crate::internal::__div_rem(&self.get_limbs(), &divisor.get_limbs());
                 (Self{limbs: q}, Self{limbs: r})
             }
 
             unconstrained fn __pow(&self, exponent: &Self) -> Self {
+                self.validate_in_range();
+                exponent.validate_in_range();
                 Self {limbs: $crate::internal::__pow::<$N, $BITS>(&self.get_limbs(), &exponent.get_limbs())}
             }
 
@@ -503,7 +520,8 @@ pub comptime fn derive_bigint(strukt: TypeDefinition, BITS: u32) -> Quoted {
 /// Evaluates `sum_i(sum(lhs_terms[i]) * sum(rhs_terms[i])) + sum(linear_terms)` over the integers
 /// and returns it.
 ///
-/// Fails if the value is negative or `>= 2^BITS`.
+/// Fails if the value is negative or `>= 2^BITS`, or if any term is not in range (see
+/// `BigInt::validate_in_range`).
 ///
 /// # Parameters
 /// - `lhs_terms`: Left-hand side terms for each product. Shape: `[NUM_PRODUCTS][LHS_N]`
@@ -541,6 +559,9 @@ pub unconstrained fn compute_quadratic_expression<T: BigInt, let LHS_N: u32, let
     linear_terms: [T; ADD_N],
     linear_flags: [bool; ADD_N],
 ) -> T {
+    lhs_terms.for_each(|terms: [T; LHS_N]| terms.for_each(|term: T| term.validate_in_range()));
+    rhs_terms.for_each(|terms: [T; RHS_N]| terms.for_each(|term: T| term.validate_in_range()));
+    linear_terms.for_each(|term: T| term.validate_in_range());
     let limbs = crate::fns::expressions::__compute_quadratic_expression::<<T as BigInt>::N, <T as BigInt>::BITS, LHS_N, RHS_N, NUM_PRODUCTS, ADD_N>(
         &crate::utils::map::map(
             &lhs_terms,

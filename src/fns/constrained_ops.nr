@@ -278,12 +278,24 @@ pub fn assert_is_not_zero<let N: u32>(val: &[u128; N]) {
 /// It is nicely decomposed into
 /// 14-bit range check and 3-bit range check - much much cheaper, since 14-bit range checks
 /// are already pretty common for 120-bit range checks
+///
+/// In unconstrained execution, this fails with the message `BigInt is not in range`.
 pub fn validate_in_range<let N: u32, let BITS: u32>(limbs: &[u128; N]) {
-    for i in 0..(N - 1) {
-        (limbs[i] as Field).assert_max_bit_size::<120>();
-    }
+    if std::runtime::is_unconstrained() {
+        // The bits above each limb's width, which must all be zero
+        let top_limb_bits: u128 = (BITS - (N - 1) * 120) as u128;
+        let mut excess: u128 = limbs[N - 1] >> top_limb_bits;
+        for i in 0..(N - 1) {
+            excess |= limbs[i] >> 120;
+        }
+        assert(excess == 0, "BigInt is not in range");
+    } else {
+        for i in 0..(N - 1) {
+            (limbs[i] as Field).assert_max_bit_size::<120>();
+        }
 
-    (limbs[N - 1] as Field).assert_max_bit_size::<BITS - ((N - 1) * 120)>();
+        (limbs[N - 1] as Field).assert_max_bit_size::<BITS - ((N - 1) * 120)>();
+    }
 }
 
 /// Validate that `lhs - rhs` does not underflow i.e. that lhs > rhs over the integers
@@ -475,6 +487,9 @@ pub(crate) fn assert_add_no_overflow<let N: u32, let BITS: u32>(
 /// is negative, i.e. a large `Field` element, and fails its range check.
 pub fn sub<let N: u32, let BITS: u32>(lhs: &[u128; N], rhs: &[u128; N]) -> [u128; N] {
     if std::runtime::is_unconstrained() {
+        // `__sub` requires canonical inputs
+        validate_in_range::<N, BITS>(lhs);
+        validate_in_range::<N, BITS>(rhs);
         // Safety: unconstrained runtime requires no constraints
         unsafe {
             __sub::<N, BITS>(lhs, rhs)
@@ -496,6 +511,12 @@ pub fn sub<let N: u32, let BITS: u32>(lhs: &[u128; N], rhs: &[u128; N]) -> [u128
 /// For multiple operations, prefer expressing the computation as a single relation and calling
 /// `evaluate_quadratic_expression`.
 pub fn mul<let N: u32, let BITS: u32>(lhs: [u128; N], rhs: [u128; N]) -> [u128; N] {
+    if std::runtime::is_unconstrained() {
+        // `__mul` requires canonical inputs. In constrained execution,
+        // `validate_mul_add_expression` range-checks them instead.
+        validate_in_range::<N, BITS>(&lhs);
+        validate_in_range::<N, BITS>(&rhs);
+    }
     // Safety: we constrain the multiplication result immediately after
     let result: [u128; N] = unsafe { __mul::<N, BITS>(&lhs, &rhs) };
     if !std::runtime::is_unconstrained() {
@@ -533,6 +554,12 @@ pub fn div_rem<let N: u32, let BITS: u32>(
     numerator: &[u128; N],
     divisor: &[u128; N],
 ) -> ([u128; N], [u128; N]) {
+    if std::runtime::is_unconstrained() {
+        // `__div_rem` requires canonical inputs. In constrained execution,
+        // `validate_mul_add_expression` range-checks them instead.
+        validate_in_range::<N, BITS>(numerator);
+        validate_in_range::<N, BITS>(divisor);
+    }
     // Safety: We constrain the result of __div_rem immediately after
     let (quotient, remainder): ([u128; N], [u128; N]) = unsafe { __div_rem(numerator, divisor) };
     if !std::runtime::is_unconstrained() {
