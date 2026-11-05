@@ -1092,6 +1092,44 @@ unconstrained fn test_unconstrained_div_by_zero() {
     let _ = U256::from(7).__div(&U256::zero());
 }
 
+// Intermediate values within an expression may exceed 2^BITS: a * a - a * d - r = 0, where
+// a = 2^128, d = 2^128 - 1 and r = 2^128, although a * a = 2^256 does not fit in a `U256`
+#[test]
+fn test_evaluate_quadratic_expression_overflowing_intermediates() {
+    let a: U256 = U256::from_limbs([0, 0x100, 0]);
+    let d: U256 = U256::from_limbs([TWO_POW_120 - 1, 0xff, 0]);
+    let r: U256 = U256::from_limbs([0, 0x100, 0]);
+    evaluate_quadratic_expression(
+        [[a], [a]],
+        [[false], [false]],
+        [[a], [d]],
+        [[false], [true]],
+        [r],
+        [true],
+    );
+
+    // Safety: test code
+    let computed: U256 = unsafe {
+        compute_quadratic_expression(
+            [[a], [a]],
+            [[false], [false]],
+            [[a], [d]],
+            [[false], [true]],
+            [],
+            [],
+        )
+    };
+    assert(computed == r);
+}
+
+// The same computation with the checked operators fails at `a * a`
+#[test(should_fail_with = "attempt to multiply with overflow")]
+fn test_operators_reject_overflowing_intermediates() {
+    let a: U256 = U256::from_limbs([0, 0x100, 0]);
+    let d: U256 = U256::from_limbs([TWO_POW_120 - 1, 0xff, 0]);
+    let _: U256 = a * a - a * d;
+}
+
 // ------------------------------ CHECKED MULTIPLICATION TESTS ------------------------------
 
 #[test]

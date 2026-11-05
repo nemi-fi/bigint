@@ -163,6 +163,10 @@ $$\sum_{i=0}^{\text{NUM\_PRODUCTS}-1} \left(\sum_j \pm \text{lhs}_{i,j}\right)\l
 
 over the integers, where a `true` flag negates the corresponding term. As every term is range-checked to $X$ bits, a relation such as `x * y - z = 0` constrains `z` to be exactly `x * y`, and fails if the product overflows.
 
+Only the terms are range-checked: intermediate values within the expression may exceed $2^X$ or be negative, as long as the relation holds. For example, with `a = 2^128` and `d = 2^128 - 1`, the relation `a * a - a * d - r = 0` holds for `r = 2^128` in `U256`, even though `a * a = 2^256` does not fit in a `U256` (so computing `a * a - a * d` with the checked operators fails). This makes expressions useful for relations which cannot be computed step by step, such as checking `a * b == c * d` when the products exceed $2^X$.
+
+Combining several operations into one expression is also cheaper than using the operators, as only the terms are range-checked and the relation is checked once. For example, `a * b + c * d` costs 55 gates for `U256` (952 for `U2048`) on top of range-checking the inputs, compared to 90 (1,190) using `*` and `+`. For a single product, `*` is cheaper.
+
 The combination of `NUM_PRODUCTS`, `LHS_N` and `RHS_N` must be small enough that intermediate product limbs do not exceed $2^{246}$. This is enforced, and expressions which could overflow are rejected. As a rough guide, keep `NUM_PRODUCTS * LHS_N * RHS_N` well below 64.
 
 `compute_quadratic_expression` is the unconstrained counterpart: it returns the value of an expression, failing if the value is negative or overflows $2^X$.
