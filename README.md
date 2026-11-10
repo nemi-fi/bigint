@@ -56,7 +56,7 @@ Values are stored as arrays of `N` little-endian 120-bit limbs held in `u128`s, 
 
 A `UX` holds values in $[0, 2^X)$: the top limb is range-checked to `X - 120 * (N - 1)` bits, so every value has exactly one limb representation. Every constructor (other than the `*_unsafe` ones, see below) and every operation range-checks its result.
 
-Values which bypass the constructors are not range-checked until they are used: circuit inputs (e.g. `fn main(a: U256)`, whose limbs are only checked to be `u128`s), values returned from unconstrained functions, and values built with `from_limbs_unsafe` or `set_limb_unsafe`. In circuits, no operation returns an incorrect result for such values: `+` and `-` do not range-check their inputs, but return the correct result or fail, and the other operations (`*`, `/`, `%`, `div_rem`, `==`, comparisons, conversions and `evaluate_quadratic_expression`) range-check their inputs. In unconstrained code, no operation returns an incorrect result either: `+` and `__add` return the correct result or fail, and `-` and the other `__` functions (`__sub`, `__mul`, `__div`, `__div_rem`, `__pow`, `__eq`), as well as `compute_quadratic_expression`, range-check their inputs as the operations above do, failing with `BigInt is not in range`. Call `validate_in_range` to check such a value explicitly. See [SPEC.md](SPEC.md) for the behaviour of each operation.
+Values which bypass the constructors are not range-checked until they are used: circuit inputs (e.g. `fn main(a: U256)`, whose limbs are only checked to be `u128`s), values returned from unconstrained functions, and values built with `from_limbs_unsafe` or `set_limb_unsafe`. In circuits, no operation returns an incorrect result for such values: `+` and `-` do not range-check their inputs, but return the correct result or fail, and the other operations (`*`, `/`, `%`, `div_rem`, `==`, comparisons, conversions, `evaluate_quadratic_expression` and the `MulDiv` methods) range-check their inputs. In unconstrained code, no operation returns an incorrect result either: `+` and `__add` return the correct result or fail, and `-` and the other `__` functions (`__sub`, `__mul`, `__div`, `__div_rem`, `__pow`, `__eq`), as well as `compute_quadratic_expression` and the `MulDiv` methods, range-check their inputs as the operations above do, failing with `BigInt is not in range`. Call `validate_in_range` to check such a value explicitly. See [SPEC.md](SPEC.md) for the behaviour of each operation.
 
 ### Defining your own width
 
@@ -95,6 +95,23 @@ Additional constrained methods:
 Every arithmetic operation has an unconstrained counterpart prefixed with `__`: `__add`, `__sub`, `__mul`, `__div`, `__div_rem`, `__pow`, `__eq`, `__is_zero`.
 
 These generate no constraints. Their results must be constrained, ideally with `evaluate_quadratic_expression` (see below).
+
+### Multiply-divide
+
+`U256` implements the `MulDiv` trait from [`mul_div`](https://github.com/noir-lang/mul-div), re-exported as `bigint::MulDiv`. It computes `a * b / d` with the full 512-bit product, so `a * b` itself never overflows:
+
+- `a.mul_div_floor(b, d)`: `floor(a * b / d)`
+- `a.mul_div_ceil(b, d)`: `ceil(a * b / d)`
+- `a.mul_div_rem(b, d)`: floor quotient and remainder `(q, r)`
+
+They fail if `d` is zero or the result does not fit in 256 bits.
+
+```rust
+use bigint::{BigInt, MulDiv, U256};
+
+let max = U256::from_le_bytes([255; 32]);
+assert_eq(max.mul_div_floor(max, max), max);
+```
 
 ### Constructors and limb access
 
